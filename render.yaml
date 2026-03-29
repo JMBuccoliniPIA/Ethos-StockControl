@@ -10,8 +10,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: API_PORT
-        value: "3001"
       - key: API_CORS_ORIGIN
         sync: false  # Set manually in Render dashboard
       - key: MONGODB_URI
