@@ -1,0 +1,26 @@
+{
+  "name": "ethos-stock",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build:shared && npm run dev --workspaces --if-present",
+    "kill:api": "npx kill-port 3001 || true",
+    "dev:api": "npm run kill:api && npm run build:shared && npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build:shared": "npm run build -w packages/shared",
+    "build": "npm run build:shared && npm run build --workspaces --if-present",
+    "build:api": "npm run build:shared && npm run build -w apps/api",
+    "build:web": "npm run build:shared && npm run build -w apps/web",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "kill-port": "^2.0.1"
+  }
+}
