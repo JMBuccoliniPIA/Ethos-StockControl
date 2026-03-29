@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Sun,
   Moon,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
@@ -33,6 +34,7 @@ const navigation: NavItem[] = [
   { name: 'Stock', href: '/stock', icon: BarChart3, permission: Permission.STOCK_READ },
   { name: 'Productos', href: '/products', icon: Package, permission: Permission.PRODUCTS_READ },
   { name: 'Familias', href: '/families', icon: FolderTree, permission: Permission.FAMILIES_READ },
+  { name: 'Proveedores', href: '/suppliers', icon: Building2, permission: Permission.SUPPLIERS_READ },
   { name: 'Importar', href: '/import', icon: Upload, permission: Permission.IMPORT_EXECUTE },
   { name: 'Usuarios', href: '/users', icon: Users, permission: Permission.USERS_READ },
 ];

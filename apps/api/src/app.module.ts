@@ -9,6 +9,8 @@ import { SubfamiliesModule } from './modules/subfamilies/subfamilies.module';
 import { ProductsModule } from './modules/products/products.module';
 import { StockModule } from './modules/stock/stock.module';
 import { ImportModule } from './modules/import/import.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { SupplierProductsModule } from './modules/supplier-products/supplier-products.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { GlobalExceptionFilter } from './common/filters';
 import { AdminSeeder } from './common/seeders/admin.seeder';
@@ -37,6 +39,8 @@ import { AdminSeeder } from './common/seeders/admin.seeder';
     ProductsModule,
     StockModule,
     ImportModule,
+    SuppliersModule,
+    SupplierProductsModule,
   ],
   providers: [
     // Global JWT auth guard — all routes require auth unless @Public()

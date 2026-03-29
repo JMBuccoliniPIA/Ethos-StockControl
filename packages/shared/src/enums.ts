@@ -31,6 +31,10 @@ export enum Permission {
   // Import
   IMPORT_EXECUTE = 'import:execute',
   IMPORT_READ = 'import:read',
+
+  // Suppliers
+  SUPPLIERS_READ = 'suppliers:read',
+  SUPPLIERS_MANAGE = 'suppliers:manage',
 }
 
 // ==================== ROLE → PERMISSIONS MAP ====================
@@ -51,6 +55,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.FAMILIES_MANAGE,
     Permission.IMPORT_EXECUTE,
     Permission.IMPORT_READ,
+    Permission.SUPPLIERS_READ,
+    Permission.SUPPLIERS_MANAGE,
   ],
 
   [Role.MANAGER]: [
@@ -63,6 +69,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.FAMILIES_MANAGE,
     Permission.IMPORT_EXECUTE,
     Permission.IMPORT_READ,
+    Permission.SUPPLIERS_READ,
+    Permission.SUPPLIERS_MANAGE,
   ],
 
   [Role.USER]: [
@@ -70,6 +78,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.STOCK_READ,
     Permission.FAMILIES_READ,
     Permission.IMPORT_READ,
+    Permission.SUPPLIERS_READ,
   ],
 };
 

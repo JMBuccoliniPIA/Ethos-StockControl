@@ -4,6 +4,8 @@ import { ImportStatus } from '../../../common/constants';
 
 export type ImportJobDocument = HydratedDocument<ImportJob>;
 
+export type ImportType = 'products' | 'supplier_products';
+
 @Schema({ timestamps: true })
 export class ImportJob {
   @Prop({ required: true })
@@ -14,6 +16,12 @@ export class ImportJob {
 
   @Prop({ required: true, enum: ImportStatus, default: ImportStatus.PENDING })
   status: ImportStatus;
+
+  @Prop({ enum: ['products', 'supplier_products'], default: 'products' })
+  importType: ImportType;
+
+  @Prop({ type: Types.ObjectId, ref: 'Supplier' })
+  supplierId?: Types.ObjectId;
 
   @Prop({ default: 0 })
   totalRows: number;
@@ -44,9 +52,12 @@ export class ImportJob {
   @Prop({ type: Object })
   result?: {
     productsCreated: number;
+    productsUpdated?: number;
     familiesCreated: number;
     subfamiliesCreated: number;
     stockMovements: number;
+    supplierProductsCreated?: number;
+    supplierProductsUpdated?: number;
   };
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImportService } from './import.service';
+import { SupplierImportService } from './supplier-import.service';
 import { RequirePermissions, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { Permission } from '../../common/constants';
@@ -18,7 +19,10 @@ import { Permission } from '../../common/constants';
 @Controller('import')
 @UseGuards(RolesGuard)
 export class ImportController {
-  constructor(private readonly importService: ImportService) {}
+  constructor(
+    private readonly importService: ImportService,
+    private readonly supplierImportService: SupplierImportService,
+  ) {}
 
   /**
    * Step 1: Upload Excel file, get headers + auto-mapping + sample
@@ -99,5 +103,69 @@ export class ImportController {
   @RequirePermissions(Permission.IMPORT_READ)
   async getJobs(@CurrentUser('sub') userId: string) {
     return this.importService.getJobs(userId);
+  }
+
+  // ─── Supplier Import Endpoints ───
+
+  /**
+   * Step 1: Upload Excel file for supplier products
+   */
+  @Post('supplier/upload')
+  @RequirePermissions(Permission.IMPORT_EXECUTE)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (
+          file.mimetype.includes('spreadsheet') ||
+          file.mimetype.includes('excel') ||
+          file.originalname.endsWith('.xlsx') ||
+          file.originalname.endsWith('.xls')
+        ) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Solo se permiten archivos Excel (.xlsx)'), false);
+        }
+      },
+    }),
+  )
+  async uploadSupplier(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('supplierId') supplierId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    if (!file) throw new BadRequestException('Archivo requerido');
+    if (!supplierId) throw new BadRequestException('Proveedor requerido');
+    return this.supplierImportService.uploadAndParse(file, supplierId, userId);
+  }
+
+  /**
+   * Step 2: Preview supplier import
+   */
+  @Post('supplier/:jobId/preview')
+  @RequirePermissions(Permission.IMPORT_EXECUTE)
+  @UseInterceptors(FileInterceptor('file'))
+  async previewSupplier(
+    @Param('jobId') jobId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('mapping') mappingJson: string,
+  ) {
+    if (!file) throw new BadRequestException('Archivo requerido');
+    let mapping: Record<string, string>;
+    try {
+      mapping = JSON.parse(mappingJson);
+    } catch {
+      throw new BadRequestException('Mapping inválido');
+    }
+    return this.supplierImportService.preview(jobId, file, mapping);
+  }
+
+  /**
+   * Step 3: Confirm supplier import
+   */
+  @Post('supplier/:jobId/confirm')
+  @RequirePermissions(Permission.IMPORT_EXECUTE)
+  async confirmSupplier(@Param('jobId') jobId: string) {
+    return this.supplierImportService.confirm(jobId);
   }
 }
