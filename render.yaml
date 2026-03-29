@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     rootDir: .
-    buildCommand: npm install && npm run build:shared && cd apps/api && npx nest build
+    buildCommand: npm install --include=dev && npm run build:shared && cd apps/api && npx nest build
     startCommand: cd apps/api && node dist/main.js
     envVars:
       - key: NODE_ENV
