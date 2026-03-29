@@ -23,25 +23,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches
       ? 'dark'
       : 'light';
-    setTheme(stored || preferred);
+    const resolved = stored || preferred;
+    setTheme(resolved);
+
+    // Apply immediately to avoid flash
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(resolved);
+
     setMounted(true);
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
     localStorage.setItem('theme', theme);
   }, [theme, mounted]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
-
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
