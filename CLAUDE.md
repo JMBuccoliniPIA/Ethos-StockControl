@@ -14,16 +14,17 @@ Sistema de gestión de inventario con soporte multi-proveedor para comparar prec
 
 ```
 apps/api/src/modules/
-├── auth/           # Autenticación JWT
-├── users/          # Gestión de usuarios
-├── families/       # Categorías de productos
-├── subfamilies/    # Subcategorías
-├── products/       # Productos (sistema original)
-├── stock/          # Movimientos de inventario
-├── import/         # Importación bulk desde Excel
-├── suppliers/      # [NUEVO] Proveedores
-├── supplier-products/  # [NUEVO] Productos por proveedor
-└── unified-products/   # [NUEVO] Productos unificados
+├── auth/               # Autenticación JWT
+├── users/              # Gestión de usuarios
+├── families/           # Categorías de productos
+├── subfamilies/        # Subcategorías
+├── products/           # Productos (sistema original)
+├── stock/              # Movimientos de inventario
+├── import/             # Importación bulk desde Excel
+├── suppliers/          # Proveedores
+├── supplier-products/  # Productos por proveedor
+├── unified-products/   # Productos unificados + mapeo
+└── mapping-settings/   # Configuración de auto-mapeo
 ```
 
 ---
@@ -72,6 +73,14 @@ UnifiedProduct (Producto Unificado)
 ├── profitMarginPercent (margen deseado)
 ├── salePrice (calculado: cost * (1 + margin/100))
 └── status
+
+MappingSettings (Configuración de Auto-Mapeo)
+├── key: 'default' (singleton)
+├── autoMapOnImport: boolean
+├── autoMapStrategy: 'exact_sku' | 'similar_name' | 'disabled'
+├── defaultProfitMargin: number (0-100)
+├── minMatchScore: number (0-100)
+└── createUnifiedIfNoMatch: boolean
 ```
 
 ### Fórmulas de Precio
@@ -106,8 +115,31 @@ Precio Venta = Costo Seleccionado × (1 + Margen% / 100)
 - [x] Frontend: Calculadora de margen
 
 ### Fase 4: Auto-mapeo Configurable
-- [x] Setting para activar/desactivar auto-mapeo
-- [x] Lógica de auto-mapeo por coincidencia exacta
+- [x] MappingSettingsModule (backend + frontend)
+- [x] Settings: autoMapOnImport, autoMapStrategy, defaultProfitMargin, createUnifiedIfNoMatch
+- [x] Estrategias: exact_sku, similar_name, disabled
+- [x] Auto-mapeo integrado en flujo de importación
+
+---
+
+## Módulos Implementados
+
+### Backend (apps/api/src/modules/)
+
+| Módulo | Descripción | Endpoints |
+|--------|-------------|-----------|
+| `mapping-settings` | Configuración de auto-mapeo | GET/PATCH `/mapping-settings` |
+| `unified-products` | Productos unificados + mapeo | CRUD + `/suggestions`, `/auto-map`, `/create-from-unmapped`, `/link` |
+| `supplier-products` | Productos de proveedores | CRUD + `createOrUpdate` |
+| `suppliers` | Gestión de proveedores | CRUD completo |
+
+### Frontend (apps/web/src/features/)
+
+| Feature | Componentes |
+|---------|-------------|
+| `unified-products` | `mapping-dialog`, `price-comparison-dialog`, `unified-product-dialog` |
+| `mapping-settings` | API hooks para configuración |
+| `import` | Selector de tipo (standard/supplier) + selector de proveedor |
 
 ---
 
