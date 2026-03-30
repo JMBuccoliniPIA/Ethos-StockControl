@@ -95,19 +95,19 @@ Precio Venta = Costo Seleccionado × (1 + Margen% / 100)
 - [x] SupplierProductsModule
 - [x] Modificar ImportJob para soportar supplierId
 - [x] SupplierImportService
-- [ ] Frontend: Selector de proveedor en importación
+- [x] Frontend: Selector de proveedor en importación
 
 ### Fase 3: Productos Unificados + Mapeo
-- [ ] Schema UnifiedProduct
-- [ ] UnifiedProductsModule
-- [ ] MappingSuggesterService (sugerencias por similitud)
-- [ ] Frontend: Interfaz de mapeo
-- [ ] Frontend: Comparativa de precios
-- [ ] Frontend: Calculadora de margen
+- [x] Schema UnifiedProduct
+- [x] UnifiedProductsModule (service + controller + DTOs)
+- [x] MappingSuggesterService (sugerencias por similitud)
+- [x] Frontend: Interfaz de mapeo
+- [x] Frontend: Comparativa de precios
+- [x] Frontend: Calculadora de margen
 
 ### Fase 4: Auto-mapeo Configurable
-- [ ] Setting para activar/desactivar auto-mapeo
-- [ ] Lógica de auto-mapeo por coincidencia exacta
+- [x] Setting para activar/desactivar auto-mapeo
+- [x] Lógica de auto-mapeo por coincidencia exacta
 
 ---
 

@@ -11,17 +11,29 @@ import { FamiliesModule } from '../families/families.module';
 import { SubfamiliesModule } from '../subfamilies/subfamilies.module';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { SupplierProductsModule } from '../supplier-products/supplier-products.module';
+import { MappingSettingsModule } from '../mapping-settings/mapping-settings.module';
+import {
+  UnifiedProduct,
+  UnifiedProductSchema,
+} from '../unified-products/schemas/unified-product.schema';
+import {
+  SupplierProduct,
+  SupplierProductSchema,
+} from '../supplier-products/schemas/supplier-product.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ImportJob.name, schema: ImportJobSchema },
+      { name: UnifiedProduct.name, schema: UnifiedProductSchema },
+      { name: SupplierProduct.name, schema: SupplierProductSchema },
     ]),
     ProductsModule,
     FamiliesModule,
     SubfamiliesModule,
     SuppliersModule,
     SupplierProductsModule,
+    MappingSettingsModule,
   ],
   controllers: [ImportController],
   providers: [ImportService, SupplierImportService, ExcelParser, RowValidator],

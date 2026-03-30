@@ -5,9 +5,12 @@ import { ImportJob, ImportJobDocument } from './schemas/import-job.schema';
 import { ExcelParser } from './parsers/excel.parser';
 import { SupplierProductsService } from '../supplier-products/supplier-products.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
+import { MappingSettingsService } from '../mapping-settings/mapping-settings.service';
 import { ImportStatus } from '../../common/constants';
+import { UnifiedProduct } from '../unified-products/schemas/unified-product.schema';
+import { SupplierProduct } from '../supplier-products/schemas/supplier-product.schema';
 
-interface SupplierValidatedRow {
+export interface SupplierValidatedRow {
   rowNumber: number;
   data: Record<string, any>;
   status: 'valid' | 'error';
@@ -19,9 +22,14 @@ export class SupplierImportService {
   constructor(
     @InjectModel(ImportJob.name)
     private importJobModel: Model<ImportJobDocument>,
+    @InjectModel(UnifiedProduct.name)
+    private unifiedProductModel: Model<UnifiedProduct>,
+    @InjectModel(SupplierProduct.name)
+    private supplierProductModel: Model<SupplierProduct>,
     private excelParser: ExcelParser,
     private supplierProductsService: SupplierProductsService,
     private suppliersService: SuppliersService,
+    private mappingSettingsService: MappingSettingsService,
   ) {}
 
   /**
@@ -156,9 +164,29 @@ export class SupplierImportService {
       }
     }
 
+    // Auto-map if enabled
+    let autoMapped = 0;
+    let autoCreated = 0;
+
+    try {
+      const settings = await this.mappingSettingsService.getSettings();
+
+      if (settings.autoMapOnImport && settings.autoMapStrategy !== 'disabled') {
+        const autoMapResult = await this.performAutoMap(
+          job.supplierId!.toString(),
+          settings,
+        );
+        autoMapped = autoMapResult.mapped;
+        autoCreated = autoMapResult.created;
+      }
+    } catch (err) {
+      // Auto-map errors shouldn't fail the import
+      console.error('Auto-map error:', err);
+    }
+
     job.status = ImportStatus.COMPLETED;
     job.result = {
-      productsCreated: 0,
+      productsCreated: autoCreated,
       familiesCreated: 0,
       subfamiliesCreated: 0,
       stockMovements: 0,
@@ -174,8 +202,68 @@ export class SupplierImportService {
       status: 'completed',
       supplierProductsCreated,
       supplierProductsUpdated,
+      autoMapped,
+      autoCreated,
       errors,
     };
+  }
+
+  /**
+   * Perform auto-mapping based on settings
+   */
+  private async performAutoMap(
+    supplierId: string,
+    settings: any,
+  ): Promise<{ mapped: number; created: number }> {
+    let mapped = 0;
+    let created = 0;
+
+    // Find unmapped supplier products from this import
+    const unmapped = await this.supplierProductModel.find({
+      supplierId: new Types.ObjectId(supplierId),
+      unifiedProductId: null,
+    });
+
+    for (const sp of unmapped) {
+      // Try exact SKU match first
+      if (settings.autoMapStrategy === 'exact_sku' || settings.autoMapStrategy === 'similar_name') {
+        const normalizedSku = sp.supplierSku.toUpperCase().trim();
+        const unified = await this.unifiedProductModel.findOne({ sku: normalizedSku });
+
+        if (unified) {
+          sp.unifiedProductId = unified._id;
+          await sp.save();
+          mapped++;
+          continue;
+        }
+      }
+
+      // Create new unified product if enabled
+      if (settings.createUnifiedIfNoMatch) {
+        // Check if SKU already exists
+        const existingSku = await this.unifiedProductModel.findOne({
+          sku: sp.supplierSku.toUpperCase(),
+        });
+
+        if (!existingSku) {
+          const newUnified = new this.unifiedProductModel({
+            sku: sp.supplierSku.toUpperCase(),
+            name: sp.supplierName,
+            description: sp.supplierDescription,
+            selectedSupplierProductId: sp._id,
+            selectedCost: sp.netCost,
+            profitMarginPercent: settings.defaultProfitMargin,
+          });
+
+          await newUnified.save();
+          sp.unifiedProductId = newUnified._id;
+          await sp.save();
+          created++;
+        }
+      }
+    }
+
+    return { mapped, created };
   }
 
   private validateSupplierRow(

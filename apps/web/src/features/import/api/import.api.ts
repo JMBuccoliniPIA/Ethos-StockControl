@@ -34,6 +34,7 @@ export interface ConfirmResult {
 }
 
 export const importApi = {
+  // ─── Standard Product Import ───
   upload: async (file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -59,6 +60,36 @@ export const importApi = {
 
   confirm: async (jobId: string): Promise<ConfirmResult> => {
     const res = await apiClient.post(`/import/${jobId}/confirm`);
+    return res.data;
+  },
+
+  // ─── Supplier Product Import ───
+  uploadSupplier: async (file: File, supplierId: string): Promise<UploadResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('supplierId', supplierId);
+    const res = await apiClient.post('/import/supplier/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+
+  previewSupplier: async (
+    jobId: string,
+    file: File,
+    mapping: Record<string, string>,
+  ): Promise<PreviewResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mapping', JSON.stringify(mapping));
+    const res = await apiClient.post(`/import/supplier/${jobId}/preview`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+
+  confirmSupplier: async (jobId: string): Promise<ConfirmResult> => {
+    const res = await apiClient.post(`/import/supplier/${jobId}/confirm`);
     return res.data;
   },
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Package, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,19 +19,30 @@ import {
   type PreviewResult,
   type ConfirmResult,
 } from '@/features/import/api/import.api';
+import { useActiveSuppliers } from '@/features/suppliers/api/use-suppliers';
 
-// Fields available for mapping
-const MAPPABLE_FIELDS = [
-  { value: 'sku', label: 'SKU / Código' },
-  { value: 'name', label: 'Nombre' },
-  { value: 'description', label: 'Descripción' },
-  { value: 'family', label: 'Familia' },
-  { value: 'subfamily', label: 'Subfamilia' },
-  { value: 'stock', label: 'Stock' },
-  { value: 'stockMin', label: 'Stock mínimo' },
-  { value: 'basePrice', label: 'Precio base' },
-  { value: 'discountPercent', label: 'Descuento %' },
-  { value: 'status', label: 'Estado' },
+// Fields available for mapping - standard products
+const MAPPABLE_FIELDS_STANDARD = [
+  { value: 'sku', label: 'SKU / Código', required: false },
+  { value: 'name', label: 'Nombre', required: true },
+  { value: 'description', label: 'Descripción', required: false },
+  { value: 'family', label: 'Familia', required: false },
+  { value: 'subfamily', label: 'Subfamilia', required: false },
+  { value: 'stock', label: 'Stock', required: false },
+  { value: 'stockMin', label: 'Stock mínimo', required: false },
+  { value: 'basePrice', label: 'Precio base', required: false },
+  { value: 'discountPercent', label: 'Descuento %', required: false },
+  { value: 'status', label: 'Estado', required: false },
+];
+
+// Fields available for mapping - supplier products
+const MAPPABLE_FIELDS_SUPPLIER = [
+  { value: 'supplierSku', label: 'Código proveedor', required: true },
+  { value: 'supplierName', label: 'Nombre producto', required: true },
+  { value: 'basePrice', label: 'Precio base', required: true },
+  { value: 'discountPercent', label: 'Descuento %', required: false },
+  { value: 'description', label: 'Descripción', required: false },
+  { value: 'category', label: 'Categoría', required: false },
 ];
 
 type Step = 'upload' | 'mapping' | 'preview' | 'result';
@@ -46,13 +57,25 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Supplier import state
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
+  const { data: suppliers, isLoading: loadingSuppliers } = useActiveSuppliers();
+
+  // Determine which fields to use based on import type
+  const isSupplierImport = !!selectedSupplierId;
+  const MAPPABLE_FIELDS = isSupplierImport ? MAPPABLE_FIELDS_SUPPLIER : MAPPABLE_FIELDS_STANDARD;
+  const requiredFields = MAPPABLE_FIELDS.filter((f) => f.required).map((f) => f.value);
+  const hasAllRequiredFields = requiredFields.every((field) => !!mapping[field]);
+
   // Step 1: Upload
   const handleUpload = useCallback(async (selectedFile: File) => {
     setFile(selectedFile);
     setLoading(true);
     setError('');
     try {
-      const result = await importApi.upload(selectedFile);
+      const result = selectedSupplierId
+        ? await importApi.uploadSupplier(selectedFile, selectedSupplierId)
+        : await importApi.upload(selectedFile);
       setUploadResult(result);
       setMapping(result.autoMapping);
       setStep('mapping');
@@ -61,7 +84,7 @@ export default function ImportPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedSupplierId]);
 
   // Step 2: Preview with mapping
   const handlePreview = useCallback(async () => {
@@ -69,7 +92,9 @@ export default function ImportPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await importApi.preview(uploadResult.jobId, file, mapping);
+      const result = isSupplierImport
+        ? await importApi.previewSupplier(uploadResult.jobId, file, mapping)
+        : await importApi.preview(uploadResult.jobId, file, mapping);
       setPreviewResult(result);
       setStep('preview');
     } catch (err: any) {
@@ -77,7 +102,7 @@ export default function ImportPage() {
     } finally {
       setLoading(false);
     }
-  }, [file, uploadResult, mapping]);
+  }, [file, uploadResult, mapping, isSupplierImport]);
 
   // Step 3: Confirm
   const handleConfirm = useCallback(async () => {
@@ -85,7 +110,9 @@ export default function ImportPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await importApi.confirm(previewResult.jobId);
+      const result = isSupplierImport
+        ? await importApi.confirmSupplier(previewResult.jobId)
+        : await importApi.confirm(previewResult.jobId);
       setConfirmResult(result);
       setStep('result');
     } catch (err: any) {
@@ -93,7 +120,7 @@ export default function ImportPage() {
     } finally {
       setLoading(false);
     }
-  }, [previewResult]);
+  }, [previewResult, isSupplierImport]);
 
   const reset = () => {
     setStep('upload');
@@ -103,6 +130,7 @@ export default function ImportPage() {
     setPreviewResult(null);
     setConfirmResult(null);
     setError('');
+    setSelectedSupplierId('');
   };
 
   // Update mapping for a field
@@ -165,41 +193,126 @@ export default function ImportPage() {
 
       {/* Step 1: Upload */}
       {step === 'upload' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Subir archivo Excel</CardTitle>
-            <CardDescription>Seleccioná un archivo .xlsx con tus productos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <label
-              className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
-            >
-              {loading ? (
-                <Loader2 className="h-10 w-10 text-primary animate-spin" />
-              ) : (
-                <>
-                  <FileSpreadsheet className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-sm font-medium">
-                    Click para seleccionar archivo
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Solo archivos .xlsx — máximo 10MB
-                  </p>
-                </>
+        <div className="space-y-4">
+          {/* Import type selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tipo de importación</CardTitle>
+              <CardDescription>
+                Elegí si querés importar productos estándar o una lista de proveedor
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSupplierId('')}
+                  className={`flex flex-col items-center p-6 rounded-lg border-2 transition-colors ${
+                    !selectedSupplierId
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Package className="h-8 w-8 mb-2 text-muted-foreground" />
+                  <span className="font-medium">Productos estándar</span>
+                  <span className="text-xs text-muted-foreground mt-1">
+                    Importar al inventario general
+                  </span>
+                </button>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSupplierId(suppliers?.[0]?._id || 'pending')}
+                    className={`w-full flex flex-col items-center p-6 rounded-lg border-2 transition-colors ${
+                      selectedSupplierId
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <Truck className="h-8 w-8 mb-2 text-muted-foreground" />
+                    <span className="font-medium">Lista de proveedor</span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      Importar precios de un proveedor
+                    </span>
+                  </button>
+                  {selectedSupplierId && (
+                    <Select
+                      value={selectedSupplierId === 'pending' ? '' : selectedSupplierId}
+                      onValueChange={setSelectedSupplierId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar proveedor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingSuppliers ? (
+                          <SelectItem value="_loading" disabled>Cargando...</SelectItem>
+                        ) : suppliers?.length === 0 ? (
+                          <SelectItem value="_empty" disabled>No hay proveedores activos</SelectItem>
+                        ) : (
+                          suppliers?.map((s) => (
+                            <SelectItem key={s._id} value={s._id}>
+                              {s.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* File upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Subir archivo Excel</CardTitle>
+              <CardDescription>
+                {selectedSupplierId
+                  ? 'Seleccioná el archivo con la lista de precios del proveedor'
+                  : 'Seleccioná un archivo .xlsx con tus productos'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <label
+                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 transition-colors ${
+                  selectedSupplierId && selectedSupplierId === 'pending'
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'cursor-pointer hover:border-primary/50 hover:bg-muted/50'
+                }`}
+              >
+                {loading ? (
+                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                ) : (
+                  <>
+                    <FileSpreadsheet className="h-10 w-10 text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium">
+                      Click para seleccionar archivo
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Solo archivos .xlsx — máximo 10MB
+                    </p>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload(f);
+                  }}
+                  disabled={loading || (selectedSupplierId === 'pending')}
+                />
+              </label>
+              {selectedSupplierId === 'pending' && (
+                <p className="text-sm text-amber-600 mt-2">
+                  Seleccioná un proveedor antes de subir el archivo
+                </p>
               )}
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleUpload(f);
-                }}
-                disabled={loading}
-              />
-            </label>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Step 2: Column mapping */}
@@ -213,12 +326,19 @@ export default function ImportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isSupplierImport && (
+              <div className="rounded-md bg-blue-50 border border-blue-200 p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Importación de proveedor:</strong> Los productos se guardarán como productos del proveedor seleccionado.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               {MAPPABLE_FIELDS.map((field) => (
                 <div key={field.value} className="space-y-1">
                   <Label className="text-xs">
                     {field.label}
-                    {field.value === 'name' && (
+                    {field.required && (
                       <span className="text-destructive ml-1">*</span>
                     )}
                   </Label>
@@ -280,7 +400,10 @@ export default function ImportPage() {
 
             <div className="flex gap-3">
               <Button variant="outline" onClick={reset}>Cancelar</Button>
-              <Button onClick={handlePreview} disabled={loading || !mapping.name}>
+              <Button
+                onClick={handlePreview}
+                disabled={loading || !hasAllRequiredFields}
+              >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Validar y previsualizar
               </Button>
@@ -324,51 +447,80 @@ export default function ImportPage() {
                   <tr>
                     <th className="px-3 py-2 text-left">#</th>
                     <th className="px-3 py-2 text-left">Estado</th>
-                    <th className="px-3 py-2 text-left">SKU</th>
-                    <th className="px-3 py-2 text-left">Nombre</th>
-                    <th className="px-3 py-2 text-left">Familia</th>
-                    <th className="px-3 py-2 text-left">Stock</th>
-                    <th className="px-3 py-2 text-left">Precio</th>
+                    {isSupplierImport ? (
+                      <>
+                        <th className="px-3 py-2 text-left">Código</th>
+                        <th className="px-3 py-2 text-left">Nombre</th>
+                        <th className="px-3 py-2 text-left">Precio</th>
+                        <th className="px-3 py-2 text-left">Dto %</th>
+                        <th className="px-3 py-2 text-left">Costo Neto</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-3 py-2 text-left">SKU</th>
+                        <th className="px-3 py-2 text-left">Nombre</th>
+                        <th className="px-3 py-2 text-left">Familia</th>
+                        <th className="px-3 py-2 text-left">Stock</th>
+                        <th className="px-3 py-2 text-left">Precio</th>
+                      </>
+                    )}
                     <th className="px-3 py-2 text-left">Errores</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {previewResult.preview.map((row) => (
-                    <tr
-                      key={row.rowNumber}
-                      className={`border-t ${
-                        row.status === 'error'
-                          ? 'bg-destructive/5'
-                          : row.status === 'duplicate'
-                            ? 'bg-amber-50'
-                            : ''
-                      }`}
-                    >
-                      <td className="px-3 py-1.5 text-muted-foreground">{row.rowNumber}</td>
-                      <td className="px-3 py-1.5">
-                        <Badge
-                          variant={
-                            row.status === 'valid'
-                              ? 'success'
-                              : row.status === 'duplicate'
-                                ? 'warning'
-                                : 'destructive'
-                          }
-                          className="text-[10px]"
-                        >
-                          {row.status === 'valid' ? 'OK' : row.status === 'duplicate' ? 'Dup' : 'Error'}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-1.5 font-mono text-xs">{String(row.data.sku ?? '-')}</td>
-                      <td className="px-3 py-1.5">{String(row.data.name ?? '-')}</td>
-                      <td className="px-3 py-1.5">{String(row.data.family ?? '-')}</td>
-                      <td className="px-3 py-1.5">{String(row.data.stock ?? 0)}</td>
-                      <td className="px-3 py-1.5">${String(row.data.basePrice ?? 0)}</td>
-                      <td className="px-3 py-1.5 text-xs text-destructive max-w-[200px] truncate">
-                        {row.errors?.join(', ')}
-                      </td>
-                    </tr>
-                  ))}
+                  {previewResult.preview.map((row) => {
+                    const basePrice = Number(row.data.basePrice ?? 0);
+                    const discount = Number(row.data.discountPercent ?? 0);
+                    const netCost = basePrice * (1 - discount / 100);
+                    return (
+                      <tr
+                        key={row.rowNumber}
+                        className={`border-t ${
+                          row.status === 'error'
+                            ? 'bg-destructive/5'
+                            : row.status === 'duplicate'
+                              ? 'bg-amber-50'
+                              : ''
+                        }`}
+                      >
+                        <td className="px-3 py-1.5 text-muted-foreground">{row.rowNumber}</td>
+                        <td className="px-3 py-1.5">
+                          <Badge
+                            variant={
+                              row.status === 'valid'
+                                ? 'success'
+                                : row.status === 'duplicate'
+                                  ? 'warning'
+                                  : 'destructive'
+                            }
+                            className="text-[10px]"
+                          >
+                            {row.status === 'valid' ? 'OK' : row.status === 'duplicate' ? 'Dup' : 'Error'}
+                          </Badge>
+                        </td>
+                        {isSupplierImport ? (
+                          <>
+                            <td className="px-3 py-1.5 font-mono text-xs">{String(row.data.supplierSku ?? '-')}</td>
+                            <td className="px-3 py-1.5">{String(row.data.supplierName ?? '-')}</td>
+                            <td className="px-3 py-1.5">${basePrice.toFixed(2)}</td>
+                            <td className="px-3 py-1.5">{discount > 0 ? `${discount}%` : '-'}</td>
+                            <td className="px-3 py-1.5 font-medium">${netCost.toFixed(2)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-1.5 font-mono text-xs">{String(row.data.sku ?? '-')}</td>
+                            <td className="px-3 py-1.5">{String(row.data.name ?? '-')}</td>
+                            <td className="px-3 py-1.5">{String(row.data.family ?? '-')}</td>
+                            <td className="px-3 py-1.5">{String(row.data.stock ?? 0)}</td>
+                            <td className="px-3 py-1.5">${String(row.data.basePrice ?? 0)}</td>
+                          </>
+                        )}
+                        <td className="px-3 py-1.5 text-xs text-destructive max-w-[200px] truncate">
+                          {row.errors?.join(', ')}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -404,20 +556,37 @@ export default function ImportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-xs text-muted-foreground">Productos creados</p>
-                <p className="text-2xl font-bold text-emerald-600">{confirmResult.productsCreated}</p>
+            {isSupplierImport ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-md border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Productos creados</p>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    {(confirmResult as any).supplierProductsCreated ?? confirmResult.productsCreated}
+                  </p>
+                </div>
+                <div className="rounded-md border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Productos actualizados</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {(confirmResult as any).supplierProductsUpdated ?? 0}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-xs text-muted-foreground">Familias creadas</p>
-                <p className="text-2xl font-bold">{confirmResult.familiesCreated}</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-md border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Productos creados</p>
+                  <p className="text-2xl font-bold text-emerald-600">{confirmResult.productsCreated}</p>
+                </div>
+                <div className="rounded-md border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Familias creadas</p>
+                  <p className="text-2xl font-bold">{confirmResult.familiesCreated}</p>
+                </div>
+                <div className="rounded-md border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Subfamilias creadas</p>
+                  <p className="text-2xl font-bold">{confirmResult.subfamiliesCreated}</p>
+                </div>
               </div>
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-xs text-muted-foreground">Subfamilias creadas</p>
-                <p className="text-2xl font-bold">{confirmResult.subfamiliesCreated}</p>
-              </div>
-            </div>
+            )}
 
             {confirmResult.errors.length > 0 && (
               <div className="rounded-md bg-amber-50 border border-amber-200 p-3">

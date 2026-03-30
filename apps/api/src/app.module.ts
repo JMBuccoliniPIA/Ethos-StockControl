@@ -11,6 +11,8 @@ import { StockModule } from './modules/stock/stock.module';
 import { ImportModule } from './modules/import/import.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { SupplierProductsModule } from './modules/supplier-products/supplier-products.module';
+import { UnifiedProductsModule } from './modules/unified-products/unified-products.module';
+import { MappingSettingsModule } from './modules/mapping-settings/mapping-settings.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { GlobalExceptionFilter } from './common/filters';
 import { AdminSeeder } from './common/seeders/admin.seeder';
@@ -41,6 +43,8 @@ import { AdminSeeder } from './common/seeders/admin.seeder';
     ImportModule,
     SuppliersModule,
     SupplierProductsModule,
+    UnifiedProductsModule,
+    MappingSettingsModule,
   ],
   providers: [
     // Global JWT auth guard — all routes require auth unless @Public()
