@@ -283,9 +283,9 @@ export class SupplierImportService {
     const supplierCategory = mapping.supplierCategory
       ? String(row[mapping.supplierCategory] ?? '').trim()
       : undefined;
-    const basePrice = mapping.basePrice ? parseFloat(row[mapping.basePrice]) || 0 : 0;
+    const basePrice = mapping.basePrice ? this.parsePrice(row[mapping.basePrice]) : 0;
     const discountPercent = mapping.discountPercent
-      ? parseFloat(row[mapping.discountPercent]) || 0
+      ? this.parsePrice(row[mapping.discountPercent])
       : 0;
 
     // Validations
@@ -317,6 +317,48 @@ export class SupplierImportService {
     };
   }
 
+  /**
+   * Parse price value handling currency symbols and locale formats
+   */
+  private parsePrice(value: any): number {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+
+    // Convert to string and clean up
+    let str = String(value).trim();
+
+    // Remove currency symbols and whitespace
+    str = str.replace(/[$€£¥\s]/g, '');
+
+    // Handle Argentine/European format (1.234,56) vs US format (1,234.56)
+    // If has comma as decimal separator (e.g., "1.234,56")
+    if (str.includes(',') && str.includes('.')) {
+      // Check which comes last - that's the decimal separator
+      const lastComma = str.lastIndexOf(',');
+      const lastDot = str.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        // Argentine format: 1.234,56 → 1234.56
+        str = str.replace(/\./g, '').replace(',', '.');
+      } else {
+        // US format: 1,234.56 → 1234.56
+        str = str.replace(/,/g, '');
+      }
+    } else if (str.includes(',')) {
+      // Only comma - could be decimal (1,5) or thousand (1,000)
+      const parts = str.split(',');
+      if (parts[1]?.length === 3) {
+        // Thousand separator: 1,000 → 1000
+        str = str.replace(/,/g, '');
+      } else {
+        // Decimal separator: 1,5 → 1.5
+        str = str.replace(',', '.');
+      }
+    }
+
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
   private autoDetectSupplierMapping(headers: string[]): Record<string, string> {
     const mapping: Record<string, string> = {};
     const normalizedHeaders = headers.map((h) =>
@@ -328,7 +370,7 @@ export class SupplierImportService {
       supplierName: ['nombre', 'descripcion', 'producto', 'articulo', 'item', 'name', 'product'],
       supplierDescription: ['detalle', 'observaciones', 'obs', 'notas', 'detail', 'notes'],
       supplierCategory: ['categoria', 'familia', 'rubro', 'linea', 'category', 'group'],
-      basePrice: ['precio', 'precio_lista', 'p_lista', 'costo', 'valor', 'price', 'cost'],
+      basePrice: ['general $', 'general', 'precio', 'precio_lista', 'p_lista', 'costo', 'valor', 'price', 'cost', 'lista'],
       discountPercent: ['descuento', 'dto', 'desc', 'bonificacion', 'bonif', 'discount'],
     };
 
