@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 
 export interface ParsedSheet {
   headers: string[];
@@ -23,25 +24,52 @@ const HEADER_ALIASES: Record<string, string[]> = {
 
 @Injectable()
 export class ExcelParser {
-  async parse(buffer: Buffer): Promise<ParsedSheet> {
+  /**
+   * Get all sheet names from an Excel file
+   */
+  async getSheetNames(buffer: Buffer): Promise<string[]> {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer as any);
+      return workbook.worksheets.map((ws) => ws.name);
+    } catch {
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      return workbook.SheetNames;
+    }
+  }
+
+  async parse(buffer: Buffer, sheetName?: string): Promise<ParsedSheet> {
+    // Try ExcelJS first (.xlsx), fall back to SheetJS (.xls)
+    try {
+      return await this.parseWithExcelJS(buffer, sheetName);
+    } catch {
+      return this.parseWithSheetJS(buffer, sheetName);
+    }
+  }
+
+  private async parseWithExcelJS(buffer: Buffer, sheetName?: string): Promise<ParsedSheet> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as any);
 
-    const worksheet = workbook.worksheets[0];
+    const worksheet = sheetName
+      ? workbook.getWorksheet(sheetName)
+      : workbook.worksheets[0];
     if (!worksheet || worksheet.rowCount === 0) {
       throw new Error('El archivo no contiene datos');
     }
 
-    // Extract headers from first row
-    const headerRow = worksheet.getRow(1);
+    // Auto-detect header row: first row with 2+ non-empty cells
+    const headerRowIndex = this.detectHeaderRow(worksheet);
+
+    const headerRow = worksheet.getRow(headerRowIndex);
     const headers: string[] = [];
     headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
       headers[colNumber - 1] = String(cell.value ?? '').trim();
     });
 
-    // Parse data rows
+    // Parse data rows (start after header row)
     const rows: Record<string, unknown>[] = [];
-    for (let i = 2; i <= worksheet.rowCount; i++) {
+    for (let i = headerRowIndex + 1; i <= worksheet.rowCount; i++) {
       const row = worksheet.getRow(i);
       const rowData: Record<string, unknown> = {};
       let hasData = false;
@@ -71,6 +99,77 @@ export class ExcelParser {
     }
 
     return { headers, rows, totalRows: rows.length };
+  }
+
+  private parseWithSheetJS(buffer: Buffer, targetSheet?: string): ParsedSheet {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = targetSheet || workbook.SheetNames[0];
+    if (!sheetName || !workbook.Sheets[sheetName]) {
+      throw new Error('El archivo no contiene datos');
+    }
+
+    const worksheet = workbook.Sheets[sheetName];
+    const raw: unknown[][] = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      defval: null,
+    });
+
+    if (raw.length === 0) {
+      throw new Error('El archivo no contiene datos');
+    }
+
+    // Auto-detect header row: first row with 2+ non-empty cells
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(raw.length, 10); i++) {
+      const nonEmpty = raw[i].filter(
+        (c) => c !== null && c !== undefined && String(c).trim() !== '',
+      ).length;
+      if (nonEmpty >= 2) {
+        headerIdx = i;
+        break;
+      }
+    }
+
+    const headers = raw[headerIdx].map((c) => String(c ?? '').trim());
+
+    const rows: Record<string, unknown>[] = [];
+    for (let i = headerIdx + 1; i < raw.length; i++) {
+      const rowData: Record<string, unknown> = {};
+      let hasData = false;
+
+      headers.forEach((header, index) => {
+        if (!header) return;
+        const value = raw[i]?.[index] ?? null;
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          hasData = true;
+        }
+        rowData[header] = value;
+      });
+
+      if (hasData) {
+        rows.push(rowData);
+      }
+    }
+
+    return { headers, rows, totalRows: rows.length };
+  }
+
+  /**
+   * Find the header row by looking for the first row with 2+ non-empty text cells.
+   * Skips title/subtitle rows that typically have only 1 cell (e.g. company name, date).
+   */
+  private detectHeaderRow(worksheet: ExcelJS.Worksheet): number {
+    const maxScan = Math.min(worksheet.rowCount, 10);
+    for (let i = 1; i <= maxScan; i++) {
+      const row = worksheet.getRow(i);
+      let nonEmptyCells = 0;
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        const val = String(cell.value ?? '').trim();
+        if (val) nonEmptyCells++;
+      });
+      if (nonEmptyCells >= 2) return i;
+    }
+    return 1;
   }
 
   autoDetectMapping(headers: string[]): Record<string, string> {

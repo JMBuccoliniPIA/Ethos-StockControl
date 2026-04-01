@@ -45,7 +45,7 @@ const MAPPABLE_FIELDS_SUPPLIER = [
   { value: 'category', label: 'Categoría', required: false },
 ];
 
-type Step = 'upload' | 'mapping' | 'preview' | 'result';
+type Step = 'upload' | 'sheet-select' | 'mapping' | 'preview' | 'result';
 
 export default function ImportPage() {
   const [step, setStep] = useState<Step>('upload');
@@ -57,6 +57,10 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Sheet selection state
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+
   // Supplier import state
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const { data: suppliers, isLoading: loadingSuppliers } = useActiveSuppliers();
@@ -67,15 +71,23 @@ export default function ImportPage() {
   const requiredFields = MAPPABLE_FIELDS.filter((f) => f.required).map((f) => f.value);
   const hasAllRequiredFields = requiredFields.every((field) => !!mapping[field]);
 
-  // Step 1: Upload
-  const handleUpload = useCallback(async (selectedFile: File) => {
+  // Step 1: Upload — detect sheets first, then parse
+  const handleUpload = useCallback(async (selectedFile: File, sheetName?: string) => {
     setFile(selectedFile);
     setLoading(true);
     setError('');
     try {
       const result = selectedSupplierId
-        ? await importApi.uploadSupplier(selectedFile, selectedSupplierId)
-        : await importApi.upload(selectedFile);
+        ? await importApi.uploadSupplier(selectedFile, selectedSupplierId, sheetName)
+        : await importApi.upload(selectedFile, sheetName);
+
+      // If multiple sheets and no sheet selected yet, show sheet selector
+      if (!sheetName && result.sheetNames && result.sheetNames.length > 1) {
+        setSheetNames(result.sheetNames);
+        setStep('sheet-select');
+        return;
+      }
+
       setUploadResult(result);
       setMapping(result.autoMapping);
       setStep('mapping');
@@ -86,15 +98,22 @@ export default function ImportPage() {
     }
   }, [selectedSupplierId]);
 
+  // Re-upload with selected sheet
+  const handleSheetSelect = useCallback(async () => {
+    if (!file || !selectedSheet) return;
+    await handleUpload(file, selectedSheet);
+  }, [file, selectedSheet, handleUpload]);
+
   // Step 2: Preview with mapping
   const handlePreview = useCallback(async () => {
     if (!file || !uploadResult) return;
     setLoading(true);
     setError('');
     try {
+      const sheet = selectedSheet || undefined;
       const result = isSupplierImport
-        ? await importApi.previewSupplier(uploadResult.jobId, file, mapping)
-        : await importApi.preview(uploadResult.jobId, file, mapping);
+        ? await importApi.previewSupplier(uploadResult.jobId, file, mapping, sheet)
+        : await importApi.preview(uploadResult.jobId, file, mapping, sheet);
       setPreviewResult(result);
       setStep('preview');
     } catch (err: any) {
@@ -102,7 +121,7 @@ export default function ImportPage() {
     } finally {
       setLoading(false);
     }
-  }, [file, uploadResult, mapping, isSupplierImport]);
+  }, [file, uploadResult, mapping, isSupplierImport, selectedSheet]);
 
   // Step 3: Confirm
   const handleConfirm = useCallback(async () => {
@@ -131,6 +150,8 @@ export default function ImportPage() {
     setConfirmResult(null);
     setError('');
     setSelectedSupplierId('');
+    setSheetNames([]);
+    setSelectedSheet('');
   };
 
   // Update mapping for a field
@@ -160,28 +181,33 @@ export default function ImportPage() {
 
       {/* Steps indicator */}
       <div className="flex items-center gap-2 text-sm">
-        {['upload', 'mapping', 'preview', 'result'].map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            {i > 0 && <div className="w-8 h-px bg-border" />}
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full ${
-                step === s
-                  ? 'bg-primary text-primary-foreground'
-                  : ['upload', 'mapping', 'preview', 'result'].indexOf(step) > i
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              <span className="font-medium">{i + 1}</span>
-              <span className="hidden sm:inline">
-                {s === 'upload' && 'Subir archivo'}
-                {s === 'mapping' && 'Mapear columnas'}
-                {s === 'preview' && 'Vista previa'}
-                {s === 'result' && 'Resultado'}
-              </span>
+        {(['upload', 'mapping', 'preview', 'result'] as const).map((s, i) => {
+          const allSteps: Step[] = ['upload', 'sheet-select', 'mapping', 'preview', 'result'];
+          const currentIdx = allSteps.indexOf(step);
+          const displayIdx = allSteps.indexOf(s === 'upload' ? 'upload' : s);
+          return (
+            <div key={s} className="flex items-center gap-2">
+              {i > 0 && <div className="w-8 h-px bg-border" />}
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full ${
+                  step === s || (step === 'sheet-select' && s === 'upload')
+                    ? 'bg-primary text-primary-foreground'
+                    : currentIdx > displayIdx
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                <span className="font-medium">{i + 1}</span>
+                <span className="hidden sm:inline">
+                  {s === 'upload' && 'Subir archivo'}
+                  {s === 'mapping' && 'Mapear columnas'}
+                  {s === 'preview' && 'Vista previa'}
+                  {s === 'result' && 'Resultado'}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {error && (
@@ -313,6 +339,47 @@ export default function ImportPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Sheet selection (when multiple sheets) */}
+      {step === 'sheet-select' && sheetNames.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Seleccionar hoja</CardTitle>
+            <CardDescription>
+              El archivo tiene {sheetNames.length} hojas. Elegí cuál querés importar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {sheetNames.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setSelectedSheet(name)}
+                  className={`flex items-center gap-2 p-4 rounded-lg border-2 transition-colors text-left ${
+                    selectedSheet === name
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <FileSpreadsheet className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <span className="font-medium truncate">{name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={reset}>Cancelar</Button>
+              <Button
+                onClick={handleSheetSelect}
+                disabled={!selectedSheet || loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Continuar con &quot;{selectedSheet || '...'}&quot;
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Step 2: Column mapping */}

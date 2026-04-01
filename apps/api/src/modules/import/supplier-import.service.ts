@@ -39,11 +39,13 @@ export class SupplierImportService {
     file: Express.Multer.File,
     supplierId: string,
     userId: string,
+    sheetName?: string,
   ) {
     // Verify supplier exists
     await this.suppliersService.findById(supplierId);
 
-    const parsed = await this.excelParser.parse(file.buffer);
+    const sheetNames = await this.excelParser.getSheetNames(file.buffer);
+    const parsed = await this.excelParser.parse(file.buffer, sheetName);
     if (parsed.totalRows === 0) {
       throw new BadRequestException('El archivo no contiene datos');
     }
@@ -63,6 +65,7 @@ export class SupplierImportService {
 
     return {
       jobId: job._id,
+      sheetNames,
       headers: parsed.headers,
       autoMapping,
       totalRows: parsed.totalRows,
@@ -77,13 +80,14 @@ export class SupplierImportService {
     jobId: string,
     file: Express.Multer.File,
     mapping: Record<string, string>,
+    sheetName?: string,
   ) {
     const job = await this.getJob(jobId);
     if (job.importType !== 'supplier_products') {
       throw new BadRequestException('Este job no es de tipo supplier_products');
     }
 
-    const parsed = await this.excelParser.parse(file.buffer);
+    const parsed = await this.excelParser.parse(file.buffer, sheetName);
 
     // Validate all rows
     const validated: SupplierValidatedRow[] = parsed.rows.map((row, i) =>

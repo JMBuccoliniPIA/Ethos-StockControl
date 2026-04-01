@@ -27,8 +27,10 @@ export class ImportService {
   async uploadAndParse(
     file: Express.Multer.File,
     userId: string,
+    sheetName?: string,
   ) {
-    const parsed = await this.excelParser.parse(file.buffer);
+    const sheetNames = await this.excelParser.getSheetNames(file.buffer);
+    const parsed = await this.excelParser.parse(file.buffer, sheetName);
     if (parsed.totalRows === 0) {
       throw new BadRequestException('El archivo no contiene datos');
     }
@@ -46,6 +48,7 @@ export class ImportService {
 
     return {
       jobId: job._id,
+      sheetNames,
       headers: parsed.headers,
       autoMapping,
       totalRows: parsed.totalRows,
@@ -60,10 +63,11 @@ export class ImportService {
     jobId: string,
     file: Express.Multer.File,
     mapping: Record<string, string>,
+    sheetName?: string,
   ) {
     const job = await this.getJob(jobId);
 
-    const parsed = await this.excelParser.parse(file.buffer);
+    const parsed = await this.excelParser.parse(file.buffer, sheetName);
 
     // Get existing SKUs for duplicate detection
     const existingSkus = new Set<string>();

@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client';
 
 export interface UploadResult {
   jobId: string;
+  sheetNames?: string[];
   headers: string[];
   autoMapping: Record<string, string>;
   totalRows: number;
@@ -35,9 +36,10 @@ export interface ConfirmResult {
 
 export const importApi = {
   // ─── Standard Product Import ───
-  upload: async (file: File): Promise<UploadResult> => {
+  upload: async (file: File, sheetName?: string): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
+    if (sheetName) formData.append('sheetName', sheetName);
     const res = await apiClient.post('/import/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -48,10 +50,12 @@ export const importApi = {
     jobId: string,
     file: File,
     mapping: Record<string, string>,
+    sheetName?: string,
   ): Promise<PreviewResult> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('mapping', JSON.stringify(mapping));
+    if (sheetName) formData.append('sheetName', sheetName);
     const res = await apiClient.post(`/import/${jobId}/preview`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -64,10 +68,11 @@ export const importApi = {
   },
 
   // ─── Supplier Product Import ───
-  uploadSupplier: async (file: File, supplierId: string): Promise<UploadResult> => {
+  uploadSupplier: async (file: File, supplierId: string, sheetName?: string): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('supplierId', supplierId);
+    if (sheetName) formData.append('sheetName', sheetName);
     const res = await apiClient.post('/import/supplier/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -78,10 +83,12 @@ export const importApi = {
     jobId: string,
     file: File,
     mapping: Record<string, string>,
+    sheetName?: string,
   ): Promise<PreviewResult> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('mapping', JSON.stringify(mapping));
+    if (sheetName) formData.append('sheetName', sheetName);
     const res = await apiClient.post(`/import/supplier/${jobId}/preview`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

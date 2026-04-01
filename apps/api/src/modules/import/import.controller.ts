@@ -31,7 +31,7 @@ export class ImportController {
   @RequirePermissions(Permission.IMPORT_EXECUTE)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
       fileFilter: (_req, file, cb) => {
         if (
           file.mimetype.includes('spreadsheet') ||
@@ -48,10 +48,11 @@ export class ImportController {
   )
   async upload(
     @UploadedFile() file: Express.Multer.File,
+    @Body('sheetName') sheetName: string,
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException('Archivo requerido');
-    return this.importService.uploadAndParse(file, userId);
+    return this.importService.uploadAndParse(file, userId, sheetName || undefined);
   }
 
   /**
@@ -64,6 +65,7 @@ export class ImportController {
     @Param('jobId') jobId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('mapping') mappingJson: string,
+    @Body('sheetName') sheetName: string,
   ) {
     if (!file) throw new BadRequestException('Archivo requerido');
     let mapping: Record<string, string>;
@@ -72,7 +74,7 @@ export class ImportController {
     } catch {
       throw new BadRequestException('Mapping inválido');
     }
-    return this.importService.preview(jobId, file, mapping);
+    return this.importService.preview(jobId, file, mapping, sheetName || undefined);
   }
 
   /**
@@ -114,7 +116,7 @@ export class ImportController {
   @RequirePermissions(Permission.IMPORT_EXECUTE)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
       fileFilter: (_req, file, cb) => {
         if (
           file.mimetype.includes('spreadsheet') ||
@@ -132,11 +134,12 @@ export class ImportController {
   async uploadSupplier(
     @UploadedFile() file: Express.Multer.File,
     @Body('supplierId') supplierId: string,
+    @Body('sheetName') sheetName: string,
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException('Archivo requerido');
     if (!supplierId) throw new BadRequestException('Proveedor requerido');
-    return this.supplierImportService.uploadAndParse(file, supplierId, userId);
+    return this.supplierImportService.uploadAndParse(file, supplierId, userId, sheetName || undefined);
   }
 
   /**
@@ -149,6 +152,7 @@ export class ImportController {
     @Param('jobId') jobId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('mapping') mappingJson: string,
+    @Body('sheetName') sheetName: string,
   ) {
     if (!file) throw new BadRequestException('Archivo requerido');
     let mapping: Record<string, string>;
@@ -157,7 +161,7 @@ export class ImportController {
     } catch {
       throw new BadRequestException('Mapping inválido');
     }
-    return this.supplierImportService.preview(jobId, file, mapping);
+    return this.supplierImportService.preview(jobId, file, mapping, sheetName || undefined);
   }
 
   /**
