@@ -40,8 +40,7 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Index for email lookups
-UserSchema.index({ email: 1 });
+// email index is created automatically by @Prop({ unique: true })
 
 // Pre-save hook: hash password if modified
 UserSchema.pre('save', async function (next) {

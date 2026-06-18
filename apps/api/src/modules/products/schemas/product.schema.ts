@@ -54,8 +54,7 @@ export class Product {
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
 
-// Indexes
-ProductSchema.index({ sku: 1 }, { unique: true });
+// Indexes (sku unique index is created by @Prop({ unique: true }))
 ProductSchema.index({ familyId: 1 });
 ProductSchema.index({ subfamilyId: 1 });
 ProductSchema.index({ name: 'text', sku: 'text' });

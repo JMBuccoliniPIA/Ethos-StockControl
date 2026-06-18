@@ -46,5 +46,5 @@ export class Supplier {
 }
 
 export const SupplierSchema = SchemaFactory.createForClass(Supplier);
-SupplierSchema.index({ name: 1 });
+// name index is created automatically by @Prop({ unique: true })
 SupplierSchema.index({ code: 1 });

@@ -86,7 +86,7 @@ export default function MappingSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings2 className="h-6 w-6" />

@@ -61,8 +61,7 @@ export class UnifiedProduct {
 
 export const UnifiedProductSchema = SchemaFactory.createForClass(UnifiedProduct);
 
-// Indexes
-UnifiedProductSchema.index({ sku: 1 }, { unique: true });
+// Indexes (sku unique index is created by @Prop({ unique: true }))
 UnifiedProductSchema.index({ familyId: 1 });
 UnifiedProductSchema.index({ subfamilyId: 1 });
 UnifiedProductSchema.index({ selectedSupplierProductId: 1 });

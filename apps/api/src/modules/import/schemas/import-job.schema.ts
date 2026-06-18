@@ -6,7 +6,7 @@ export type ImportJobDocument = HydratedDocument<ImportJob>;
 
 export type ImportType = 'products' | 'supplier_products';
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, suppressReservedKeysWarning: true })
 export class ImportJob {
   @Prop({ required: true })
   fileName: string;

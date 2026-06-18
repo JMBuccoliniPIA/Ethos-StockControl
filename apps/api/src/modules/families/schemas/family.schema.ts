@@ -16,4 +16,4 @@ export class Family {
 }
 
 export const FamilySchema = SchemaFactory.createForClass(Family);
-FamilySchema.index({ name: 1 });
+// name index is created automatically by @Prop({ unique: true })
