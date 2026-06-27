@@ -82,7 +82,12 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('accessToken');
 
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        // Preservar el destino actual para volver tras re-loguear (evita el "doble login")
+        const { pathname, search } = window.location;
+        const dest = `${pathname}${search}`;
+        const redirect =
+          pathname && pathname !== '/login' ? `?redirect=${encodeURIComponent(dest)}` : '';
+        window.location.href = `/login${redirect}`;
       }
 
       return Promise.reject(refreshError);

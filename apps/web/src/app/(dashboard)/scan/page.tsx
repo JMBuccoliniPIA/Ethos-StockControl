@@ -14,6 +14,25 @@ import { notify } from '@/lib/toast';
 
 type Stage = 'idle' | 'scanning' | 'found' | 'confirming';
 
+/** Traduce los errores de getUserMedia a un mensaje claro y accionable. */
+function describeCameraError(err: unknown): string {
+  const name = (err as any)?.name ?? '';
+  const message = String((err as any)?.message ?? err ?? '');
+  if (name === 'NotAllowedError' || /permission|denied|dismiss/i.test(message)) {
+    return 'Permiso de cámara denegado. Habilitá la cámara para este sitio en los ajustes del navegador y reintentá.';
+  }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    return 'No se encontró una cámara disponible en el dispositivo.';
+  }
+  if (name === 'NotReadableError') {
+    return 'La cámara está siendo usada por otra app. Cerrala e intentá de nuevo.';
+  }
+  if (/secure|https/i.test(message)) {
+    return 'La cámara requiere una conexión segura (HTTPS). Abrí la página por HTTPS.';
+  }
+  return message || 'No se pudo acceder a la cámara.';
+}
+
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   useEffect(() => {
@@ -151,10 +170,15 @@ export default function ScanPage() {
       )}
 
       {stage === 'idle' && (
-        <Button onClick={startScanning} className="w-full" size="lg">
-          <QrCode className="h-5 w-5 mr-2" />
-          Iniciar escaneo
-        </Button>
+        <div className="space-y-2">
+          <Button onClick={startScanning} className="w-full" size="lg">
+            <QrCode className="h-5 w-5 mr-2" />
+            Iniciar escaneo
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Se pedirá permiso para usar la cámara. Tocá &quot;Permitir&quot; para escanear.
+          </p>
+        </div>
       )}
 
       {stage === 'scanning' && (
@@ -162,7 +186,7 @@ export default function ScanPage() {
           <div className="relative rounded-lg overflow-hidden border-2 border-primary aspect-square">
             <Scanner
               onScan={handleScan}
-              onError={(err) => setError(String((err as any)?.message ?? err))}
+              onError={(err) => setError(describeCameraError(err))}
               constraints={{ facingMode: 'environment' }}
               styles={{ container: { width: '100%', height: '100%' } }}
             />

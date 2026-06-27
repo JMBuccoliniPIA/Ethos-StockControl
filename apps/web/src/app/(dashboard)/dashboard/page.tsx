@@ -103,12 +103,12 @@ export default function DashboardPage() {
 
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="rounded-lg bg-emerald-100 p-2.5">
+            <div className="rounded-lg bg-emerald-100 p-2.5 shrink-0">
               <DollarSign className="h-5 w-5 text-emerald-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Valor total</p>
-              <p className="text-2xl font-bold">
+              <p className="text-xl sm:text-2xl font-bold leading-tight tabular-nums break-words">
                 ${(stats?.totalStockValue ?? 0).toLocaleString('es-AR', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,

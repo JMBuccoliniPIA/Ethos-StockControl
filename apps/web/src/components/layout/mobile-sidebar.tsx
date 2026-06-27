@@ -39,7 +39,8 @@ const navigation: NavItem[] = [
   { name: 'Kardex', href: '/kardex', icon: ClipboardList, permission: Permission.KARDEX_READ },
   { name: 'Ventas', href: '/ventas', icon: TrendingUp, permission: Permission.SALES_READ },
   { name: 'Productos', href: '/products', icon: Package, permission: Permission.PRODUCTS_READ },
-  { name: 'Unificados', href: '/unified-products', icon: Layers, permission: Permission.PRODUCTS_READ },
+  // Oculto temporalmente: sección Productos Unificados (la ruta /unified-products sigue existiendo)
+  // { name: 'Unificados', href: '/unified-products', icon: Layers, permission: Permission.PRODUCTS_READ },
   { name: 'Familias', href: '/families', icon: FolderTree, permission: Permission.FAMILIES_READ },
   { name: 'Proveedores', href: '/suppliers', icon: Building2, permission: Permission.PRODUCTS_READ },
   { name: 'Lista por Proveedor', href: '/supplier-products', icon: Truck, permission: Permission.PRODUCTS_READ },
@@ -104,6 +105,7 @@ export function MobileSidebar() {
                     onClick={() => setOpen(false)}
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card',
                       isActive
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',

@@ -26,7 +26,11 @@ export function LoginForm() {
     setServerError('');
     loginMutation.mutate(data, {
       onSuccess: () => {
-        router.push('/dashboard');
+        // Volver al destino original si vino por un deep-link protegido
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        const safe = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+        router.push(safe);
       },
       onError: (error: any) => {
         const message =

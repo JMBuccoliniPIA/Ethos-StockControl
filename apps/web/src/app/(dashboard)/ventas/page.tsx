@@ -202,13 +202,15 @@ export default function VentasPage() {
             {(summary?.totalUnits ?? 0).toLocaleString('es-AR')}
           </p>
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border p-4 min-w-0">
           <p className="text-sm text-muted-foreground">Facturación</p>
-          <p className="text-2xl font-bold">{formatCurrency(summary?.totalRevenue ?? 0)}</p>
+          <p className="text-xl sm:text-2xl font-bold leading-tight tabular-nums break-words">
+            {formatCurrency(summary?.totalRevenue ?? 0)}
+          </p>
         </div>
-        <div className="rounded-lg border p-4 bg-emerald-50/40">
+        <div className="rounded-lg border p-4 bg-emerald-50/40 min-w-0">
           <p className="text-sm text-muted-foreground">Margen total</p>
-          <p className="text-2xl font-bold text-emerald-700">
+          <p className="text-xl sm:text-2xl font-bold text-emerald-700 leading-tight tabular-nums break-words">
             {formatCurrency(summary?.totalMargin ?? 0)}
           </p>
         </div>
