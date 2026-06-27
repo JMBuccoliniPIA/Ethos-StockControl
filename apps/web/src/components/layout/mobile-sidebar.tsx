@@ -23,6 +23,7 @@ import {
   Settings2,
   Truck,
   TrendingUp,
+  QrCode,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -36,6 +37,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: Permission.PRODUCTS_READ },
   { name: 'Stock', href: '/stock', icon: BarChart3, permission: Permission.STOCK_READ },
+  { name: 'Escanear QR', href: '/scan', icon: QrCode, permission: Permission.STOCK_ADJUST },
   { name: 'Kardex', href: '/kardex', icon: ClipboardList, permission: Permission.KARDEX_READ },
   { name: 'Ventas', href: '/ventas', icon: TrendingUp, permission: Permission.SALES_READ },
   { name: 'Productos', href: '/products', icon: Package, permission: Permission.PRODUCTS_READ },
