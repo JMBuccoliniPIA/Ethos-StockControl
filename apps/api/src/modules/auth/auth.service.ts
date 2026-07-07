@@ -142,10 +142,11 @@ export class AuthService {
       expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d') as any,
     });
 
-    // Hash and store the refresh token
+    // Hash and store the refresh token. Derive the DB TTL from the same
+    // JWT_REFRESH_EXPIRATION so token validity and cleanup stay in sync.
     const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiration = this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d');
+    const expiresAt = new Date(Date.now() + this.parseExpirationMs(expiration));
 
     await this.refreshTokenModel.create({
       userId,
@@ -155,5 +156,25 @@ export class AuthService {
     });
 
     return refreshToken;
+  }
+
+  /**
+   * Parse a JWT-style expiration string ("15m", "7d", "24h", "3600s" or a raw
+   * number of seconds) into milliseconds. Falls back to 7 days if unparseable.
+   */
+  private parseExpirationMs(value: string): number {
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    if (!value) return SEVEN_DAYS;
+    const match = /^(\d+)\s*([smhd]?)$/.exec(value.trim());
+    if (!match) return SEVEN_DAYS;
+    const amount = Number(match[1]);
+    const unit = match[2] || 's';
+    const unitMs: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+    return amount * (unitMs[unit] ?? 1000);
   }
 }

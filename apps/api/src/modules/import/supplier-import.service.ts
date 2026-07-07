@@ -274,11 +274,17 @@ export class SupplierImportService {
     job.status = ImportStatus.PROCESSING;
     await job.save();
 
-    const validRows = job.previewData.filter((r) => r.status === 'valid');
+    // Deduplicate rows by supplierSku (last occurrence wins) so a file with
+    // repeated SKUs doesn't corrupt the revert snapshot or double-process.
+    const validRows = this.dedupeBySku(
+      job.previewData.filter((r) => r.status === 'valid'),
+    );
     let supplierProductsCreated = 0;
     let supplierProductsUpdated = 0;
     const errors: Array<{ row: number; message: string }> = [];
     const previousValues: ImportJobDocument['previousValues'] = [];
+    const touchedSkus: string[] = [];
+    const touchedSpIds: Types.ObjectId[] = [];
 
     for (const row of validRows) {
       try {
@@ -290,18 +296,24 @@ export class SupplierImportService {
           supplierSku: data.supplierSku,
         });
 
-        const { product, isNew } = await this.supplierProductsService.createOrUpdate({
-          supplierId: job.supplierId!.toString(),
-          supplierSku: data.supplierSku,
-          supplierName: data.supplierName,
-          supplierDescription: data.supplierDescription,
-          supplierCategory: data.supplierCategory,
-          color: data.color,
-          basePrice: data.basePrice ?? 0,
-          discountPercent: data.discountPercent ?? 0,
-          currency: data.currency,
-          metadata: data.metadata,
-        });
+        const { product, isNew } = await this.supplierProductsService.createOrUpdate(
+          {
+            supplierId: job.supplierId!.toString(),
+            supplierSku: data.supplierSku,
+            supplierName: data.supplierName,
+            supplierDescription: data.supplierDescription,
+            supplierCategory: data.supplierCategory,
+            color: data.color,
+            basePrice: data.basePrice ?? 0,
+            discountPercent: data.discountPercent ?? 0,
+            currency: data.currency,
+            metadata: data.metadata,
+          },
+          job._id.toString(),
+        );
+
+        touchedSkus.push(data.supplierSku);
+        touchedSpIds.push(product._id);
 
         previousValues.push(
           isNew
@@ -333,6 +345,10 @@ export class SupplierImportService {
 
     job.previousValues = previousValues;
 
+    // Propagate the new netCost to any UnifiedProduct that selected one of the
+    // supplier products touched by this import, recalculating its salePrice.
+    await this.propagateCostToUnified(touchedSpIds);
+
     // Auto-map if enabled
     let autoMapped = 0;
     let autoCreated = 0;
@@ -344,9 +360,11 @@ export class SupplierImportService {
         const autoMapResult = await this.performAutoMap(
           job.supplierId!.toString(),
           settings,
+          touchedSkus,
         );
         autoMapped = autoMapResult.mapped;
         autoCreated = autoMapResult.created;
+        job.autoCreatedUnifiedIds = autoMapResult.createdUnifiedIds;
       }
     } catch (err: any) {
       // Auto-map errors shouldn't fail the import
@@ -378,19 +396,54 @@ export class SupplierImportService {
   }
 
   /**
-   * Perform auto-mapping based on settings
+   * Keep only the last row per supplierSku (last price wins).
+   */
+  private dedupeBySku(
+    rows: ImportJobDocument['previewData'],
+  ): ImportJobDocument['previewData'] {
+    const bySku = new Map<string, ImportJobDocument['previewData'][number]>();
+    for (const row of rows) {
+      const sku = String((row.data as Record<string, any>).supplierSku ?? '');
+      if (sku) bySku.set(sku, row);
+    }
+    return [...bySku.values()];
+  }
+
+  /**
+   * Refresh selectedCost + salePrice on any UnifiedProduct whose selected cost
+   * source is one of the given supplier products (after a price reimport).
+   */
+  private async propagateCostToUnified(supplierProductIds: Types.ObjectId[]) {
+    if (supplierProductIds.length === 0) return;
+    const affected = await this.unifiedProductModel.find({
+      selectedSupplierProductId: { $in: supplierProductIds },
+    });
+    for (const up of affected as any[]) {
+      const sp = await this.supplierProductModel.findById(up.selectedSupplierProductId);
+      if (sp) {
+        up.selectedCost = sp.netCost;
+        await up.save(); // pre-save hook recalculates salePrice
+      }
+    }
+  }
+
+  /**
+   * Perform auto-mapping based on settings, scoped to the SKUs of this import.
    */
   private async performAutoMap(
     supplierId: string,
     settings: any,
-  ): Promise<{ mapped: number; created: number }> {
+    skus: string[],
+  ): Promise<{ mapped: number; created: number; createdUnifiedIds: string[] }> {
     let mapped = 0;
     let created = 0;
+    const createdUnifiedIds: string[] = [];
 
-    // Find unmapped supplier products from this import
+    // Find unmapped supplier products from THIS import only
     const unmapped = await this.supplierProductModel.find({
       supplierId: new Types.ObjectId(supplierId),
       unifiedProductId: null,
+      ...(skus.length ? { supplierSku: { $in: skus } } : {}),
     });
 
     for (const sp of unmapped) {
@@ -429,11 +482,12 @@ export class SupplierImportService {
           sp.unifiedProductId = newUnified._id;
           await sp.save();
           created++;
+          createdUnifiedIds.push(newUnified._id.toString());
         }
       }
     }
 
-    return { mapped, created };
+    return { mapped, created, createdUnifiedIds };
   }
 
   private validateSupplierRow(
@@ -459,6 +513,18 @@ export class SupplierImportService {
     const discountPercent = mapping.discountPercent
       ? this.parsePrice(row[mapping.discountPercent])
       : 0;
+    const color = mapping.color
+      ? String(row[mapping.color] ?? '').trim() || undefined
+      : undefined;
+    // Currency: only override the ARS default when a USD-like value is present
+    const currencyRaw = mapping.currency
+      ? String(row[mapping.currency] ?? '').trim().toUpperCase()
+      : '';
+    const currency: 'ARS' | 'USD' | undefined = !currencyRaw
+      ? undefined
+      : /USD|U\$S|DOLAR|DÓLAR/.test(currencyRaw)
+        ? 'USD'
+        : 'ARS';
 
     // Validations
     if (!supplierSku) {
@@ -480,6 +546,8 @@ export class SupplierImportService {
     data.supplierCategory = supplierCategory;
     data.basePrice = basePrice;
     data.discountPercent = discountPercent;
+    data.color = color;
+    data.currency = currency;
 
     return {
       rowNumber,
@@ -544,6 +612,8 @@ export class SupplierImportService {
       supplierCategory: ['categoria', 'familia', 'rubro', 'linea', 'category', 'group'],
       basePrice: ['general $', 'general', 'precio', 'precio_lista', 'p_lista', 'costo', 'valor', 'price', 'cost', 'lista'],
       discountPercent: ['descuento', 'dto', 'desc', 'bonificacion', 'bonif', 'discount'],
+      currency: ['moneda', 'currency', 'divisa'],
+      color: ['color', 'colour'],
     };
 
     for (const [field, fieldAliases] of Object.entries(aliases)) {
@@ -696,6 +766,17 @@ export class SupplierImportService {
         }
       } catch (err: any) {
         errors.push({ message: err.message || 'Error desconocido' });
+      }
+    }
+
+    // Remove UnifiedProducts that this job's auto-map created (avoid orphans)
+    if (job.autoCreatedUnifiedIds?.length) {
+      try {
+        await this.unifiedProductModel.deleteMany({
+          _id: { $in: job.autoCreatedUnifiedIds },
+        });
+      } catch (err: any) {
+        errors.push({ message: err.message || 'Error al borrar productos unificados auto-creados' });
       }
     }
 

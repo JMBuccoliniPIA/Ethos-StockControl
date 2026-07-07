@@ -30,12 +30,20 @@ import type { Product } from '@ethos/shared';
 const movementSchema = z
   .object({
     type: z.nativeEnum(MovementType),
-    quantity: z.coerce.number().min(1, 'La cantidad debe ser al menos 1'),
+    quantity: z.coerce.number().min(0, 'La cantidad no puede ser negativa'),
     reason: z.string().min(1, 'El motivo es requerido'),
     supplierId: z.string().optional(),
     documentNumber: z.string().optional(),
   })
   .superRefine((data, ctx) => {
+    // IN/OUT need at least 1; ADJUSTMENT may set stock to 0
+    if (data.type !== MovementType.ADJUSTMENT && data.quantity < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La cantidad debe ser al menos 1',
+        path: ['quantity'],
+      });
+    }
     if (data.type === MovementType.IN) {
       if (!data.supplierId) {
         ctx.addIssue({
@@ -125,7 +133,8 @@ export function StockMovementDialog({
   }, [open, defaultType, reset]);
 
   const currentType = watch('type');
-  const quantity = watch('quantity') || 0;
+  // register() keeps quantity as a string — coerce so the preview adds instead of concatenating
+  const quantity = Number(watch('quantity')) || 0;
   const config = TYPE_CONFIG[currentType];
 
   // Preview new stock
@@ -218,7 +227,7 @@ export function StockMovementDialog({
             <Input
               id="quantity"
               type="number"
-              min={1}
+              min={currentType === MovementType.ADJUSTMENT ? 0 : 1}
               {...register('quantity')}
             />
             {errors.quantity && (

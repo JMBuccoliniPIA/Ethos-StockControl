@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, FilterQuery, ClientSession } from 'mongoose';
 import { StockLot, StockLotDocument } from './schemas/stock-lot.schema';
@@ -17,6 +17,8 @@ interface FIFOConsumption {
 
 @Injectable()
 export class KardexService {
+  private readonly logger = new Logger(KardexService.name);
+
   constructor(
     @InjectModel(KardexEntry.name)
     private kardexEntryModel: Model<KardexEntryDocument>,
@@ -33,17 +35,22 @@ export class KardexService {
    * Tries to use a MongoDB transaction for atomicity; falls back to
    * non-transactional execution on standalone instances.
    */
-  async recordEntry(dto: CreateKardexEntryDto, userId: string, skipStockAdjust = false) {
+  async recordEntry(
+    dto: CreateKardexEntryDto,
+    userId: string,
+    skipStockAdjust = false,
+    knownPreviousStock?: number,
+  ) {
     // Try with transaction first, fallback to non-transactional
     try {
-      return await this.executeWithTransaction(dto, userId, skipStockAdjust);
+      return await this.executeWithTransaction(dto, userId, skipStockAdjust, knownPreviousStock);
     } catch (err: any) {
       // Standalone MongoDB doesn't support transactions
       if (
         err.message?.includes('Transaction numbers are only allowed on a replica set') ||
         err.codeName === 'IllegalOperation'
       ) {
-        return await this.executeWithoutTransaction(dto, userId, skipStockAdjust);
+        return await this.executeWithoutTransaction(dto, userId, skipStockAdjust, knownPreviousStock);
       }
       throw err;
     }
@@ -53,12 +60,13 @@ export class KardexService {
     dto: CreateKardexEntryDto,
     userId: string,
     skipStockAdjust: boolean,
+    knownPreviousStock?: number,
   ) {
     const session = await this.connection.startSession();
     try {
       let result: KardexEntryDocument;
       await session.withTransaction(async () => {
-        result = await this.processEntry(dto, userId, skipStockAdjust, session);
+        result = await this.processEntry(dto, userId, skipStockAdjust, session, knownPreviousStock);
       });
       return result!;
     } finally {
@@ -70,8 +78,9 @@ export class KardexService {
     dto: CreateKardexEntryDto,
     userId: string,
     skipStockAdjust: boolean,
+    knownPreviousStock?: number,
   ) {
-    return this.processEntry(dto, userId, skipStockAdjust, null);
+    return this.processEntry(dto, userId, skipStockAdjust, null, knownPreviousStock);
   }
 
   private async processEntry(
@@ -79,9 +88,14 @@ export class KardexService {
     userId: string,
     skipStockAdjust: boolean,
     session: ClientSession | null,
+    knownPreviousStock?: number,
   ): Promise<KardexEntryDocument> {
-    const product = await this.resolveProduct(dto.productId, dto.productType);
-    const previousStock = product.stock;
+    // When the caller already applied the stock change (bridge from StockService),
+    // it passes the pre-movement stock so the ledger snapshot stays correct
+    // instead of re-reading the already-mutated value.
+    const previousStock =
+      knownPreviousStock ??
+      (await this.resolveProduct(dto.productId, dto.productType)).stock;
     const lastBalance = await this.getLastBalance(dto.productId, dto.productType);
 
     let result: KardexEntryDocument;
@@ -364,11 +378,13 @@ export class KardexService {
     }
 
     if (remaining > 0) {
-      consumptions.push({
-        lotId: 'uncovered',
-        quantity: remaining,
-        unitCost: 0,
-      });
+      // Not enough FIFO lots to cover the exit (e.g. stock seeded/adjusted
+      // without cost lots). Record the movement anyway — but DON'T push a fake
+      // 'uncovered' lotId, since lotConsumptions.lotId is an ObjectId and the
+      // string would throw a cast error, silently dropping the whole entry.
+      this.logger.warn(
+        `FIFO parcial: ${remaining} unidad(es) sin lote de costo para producto ${productId}`,
+      );
     }
 
     return { consumptions, totalCost };

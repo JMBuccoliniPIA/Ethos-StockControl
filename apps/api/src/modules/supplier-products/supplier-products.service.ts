@@ -6,6 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
 import { SupplierProduct, SupplierProductDocument } from './schemas/supplier-product.schema';
+import { UnifiedProduct, UnifiedProductDocument } from '../unified-products/schemas/unified-product.schema';
 import { CreateSupplierProductDto } from './dto/create-supplier-product.dto';
 import { UpdateSupplierProductDto } from './dto/update-supplier-product.dto';
 import { QuerySupplierProductDto } from './dto/query-supplier-product.dto';
@@ -15,6 +16,8 @@ export class SupplierProductsService {
   constructor(
     @InjectModel(SupplierProduct.name)
     private supplierProductModel: Model<SupplierProductDocument>,
+    @InjectModel(UnifiedProduct.name)
+    private unifiedProductModel: Model<UnifiedProductDocument>,
   ) {}
 
   async create(dto: CreateSupplierProductDto): Promise<SupplierProductDocument> {
@@ -35,11 +38,15 @@ export class SupplierProductsService {
     });
   }
 
-  async createOrUpdate(dto: CreateSupplierProductDto): Promise<{
+  async createOrUpdate(
+    dto: CreateSupplierProductDto,
+    importJobId?: string,
+  ): Promise<{
     product: SupplierProductDocument;
     isNew: boolean;
   }> {
     const normalizedSku = dto.supplierSku.trim().toUpperCase();
+    const jobId = importJobId ? new Types.ObjectId(importJobId) : undefined;
     const existing = await this.supplierProductModel.findOne({
       supplierId: new Types.ObjectId(dto.supplierId),
       supplierSku: normalizedSku,
@@ -55,6 +62,7 @@ export class SupplierProductsService {
       existing.discountPercent = dto.discountPercent ?? 0;
       if (dto.currency) existing.currency = dto.currency;
       if (dto.metadata) existing.metadata = dto.metadata;
+      if (jobId) existing.importJobId = jobId;
       await existing.save();
       return { product: existing, isNew: false };
     }
@@ -62,6 +70,7 @@ export class SupplierProductsService {
     const product = await this.supplierProductModel.create({
       ...dto,
       supplierId: new Types.ObjectId(dto.supplierId),
+      ...(jobId ? { importJobId: jobId } : {}),
     });
     return { product, isNew: true };
   }
@@ -137,6 +146,20 @@ export class SupplierProductsService {
   async delete(id: string): Promise<void> {
     const result = await this.supplierProductModel.findByIdAndDelete(id);
     if (!result) throw new NotFoundException('Producto de proveedor no encontrado');
+    // Clear any dangling selection on unified products that used this cost source
+    await this.clearUnifiedSelection(id);
+  }
+
+  /**
+   * When a supplier product stops being available (deleted or unlinked), any
+   * UnifiedProduct that had it selected as its cost source must drop the
+   * selection so salePrice isn't derived from a stale/removed cost.
+   */
+  private async clearUnifiedSelection(supplierProductId: string): Promise<void> {
+    await this.unifiedProductModel.updateMany(
+      { selectedSupplierProductId: new Types.ObjectId(supplierProductId) },
+      { $set: { selectedCost: 0, salePrice: 0 }, $unset: { selectedSupplierProductId: '' } },
+    );
   }
 
   async linkToUnifiedProduct(
@@ -157,6 +180,8 @@ export class SupplierProductsService {
 
     product.unifiedProductId = undefined;
     await product.save();
+    // Drop the selection if this product was the selected cost source
+    await this.clearUnifiedSelection(supplierProductId);
     return product;
   }
 

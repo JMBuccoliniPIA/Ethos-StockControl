@@ -9,8 +9,9 @@ export class CreateMovementDto {
   @IsEnum(MovementType)
   type: MovementType;
 
+  // 0 is valid for ADJUSTMENT (setting stock to zero). IN/OUT of 0 are no-ops.
   @IsNumber()
-  @Min(1)
+  @Min(0)
   quantity: number;
 
   @IsString()

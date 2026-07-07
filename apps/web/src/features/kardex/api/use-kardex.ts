@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { kardexApi, type KardexQuery } from './kardex.api';
 import { notify } from '@/lib/toast';
 import type { CreateKardexEntryFormData } from '../schemas/kardex.schema';
@@ -13,6 +13,7 @@ export function useKardexEntries(query: KardexQuery | null) {
     queryKey: [...KARDEX_KEY, 'entries', query],
     queryFn: () => kardexApi.getEntries(query!),
     enabled: !!query?.productId,
+    placeholderData: keepPreviousData,
   });
 }
 

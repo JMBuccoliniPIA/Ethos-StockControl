@@ -23,7 +23,8 @@ export class StockService {
   ) {}
 
   async createMovement(dto: CreateMovementDto, userId: string) {
-    const product = await this.productsService.findById(dto.productId);
+    // Ensure the product exists (throws 404 otherwise)
+    await this.productsService.findById(dto.productId);
 
     // For incoming stock, supplier + remito are mandatory
     if (dto.type === MovementType.IN) {
@@ -35,32 +36,12 @@ export class StockService {
       }
     }
 
-    // Calculate stock change
-    let quantityDelta: number;
-    switch (dto.type) {
-      case MovementType.IN:
-        quantityDelta = dto.quantity;
-        break;
-      case MovementType.OUT:
-        if (product.stock < dto.quantity) {
-          throw new BadRequestException(
-            `Stock insuficiente. Disponible: ${product.stock}, solicitado: ${dto.quantity}`,
-          );
-        }
-        quantityDelta = -dto.quantity;
-        break;
-      case MovementType.ADJUSTMENT:
-        // Adjustment sets absolute value — delta is the difference
-        quantityDelta = dto.quantity - product.stock;
-        break;
-      default:
-        throw new BadRequestException('Tipo de movimiento inválido');
-    }
-
-    const previousStock = product.stock;
-    const { newStock } = await this.productsService.adjustStock(
+    // Apply the stock change atomically (guards against oversell / races).
+    // For ADJUSTMENT, quantity is the absolute target value.
+    const { previousStock, newStock } = await this.productsService.applyMovement(
       dto.productId,
-      quantityDelta,
+      dto.type,
+      dto.quantity,
     );
 
     const movement = await this.movementModel.create({
@@ -75,7 +56,9 @@ export class StockService {
       performedBy: userId,
     });
 
-    // Bridge: also create a Kardex entry if the service is available
+    // Bridge: also create a Kardex entry if the service is available.
+    // Pass the real previousStock (knownPreviousStock) so the ledger snapshot
+    // is correct, and skipStockAdjust because we already applied the change.
     if (this.kardexService) {
       try {
         await this.kardexService.recordEntry(
@@ -92,6 +75,7 @@ export class StockService {
           },
           userId,
           true, // skipStockAdjust: StockService already adjusted the stock
+          previousStock, // knownPreviousStock: avoid re-reading the mutated stock
         );
       } catch {
         // Kardex entry creation is non-blocking for backward compatibility

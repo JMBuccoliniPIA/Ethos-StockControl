@@ -111,8 +111,9 @@ export function KardexEntryDialog({
   }, [open, productId, productType, reset]);
 
   const currentType = watch('type');
-  const quantity = watch('quantity') || 0;
-  const unitCost = watch('unitCost') || 0;
+  // register() keeps these as strings — coerce so the preview math is numeric
+  const quantity = Number(watch('quantity')) || 0;
+  const unitCost = Number(watch('unitCost')) || 0;
   const config = TYPE_CONFIG[currentType];
 
   // Preview

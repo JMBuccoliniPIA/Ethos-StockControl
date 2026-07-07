@@ -6,12 +6,21 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 import { useLogin } from '../api/use-auth';
 import { loginSchema, type LoginFormData } from '../schemas/auth.schema';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/providers/auth-provider';
 
 export function LoginForm() {
   const router = useRouter();
   const loginMutation = useLogin();
+  const { isAuthenticated, isLoading } = useAuth();
   const [serverError, setServerError] = useState('');
+
+  // Already logged in? Skip the form and go straight to the dashboard.
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   const {
     register,

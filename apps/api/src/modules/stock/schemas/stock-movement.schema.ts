@@ -12,7 +12,8 @@ export class StockMovement {
   @Prop({ required: true, enum: MovementType })
   type: MovementType;
 
-  @Prop({ required: true, min: 1 })
+  // 0 is valid for ADJUSTMENT (setting stock to zero); IN/OUT are guarded in the DTO/service
+  @Prop({ required: true, min: 0 })
   quantity: number;
 
   @Prop({ required: true, trim: true })

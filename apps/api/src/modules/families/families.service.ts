@@ -2,10 +2,12 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Family, FamilyDocument } from './schemas/family.schema';
+import { Product, ProductDocument } from '../products/schemas/product.schema';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
 
@@ -13,6 +15,7 @@ import { UpdateFamilyDto } from './dto/update-family.dto';
 export class FamiliesService {
   constructor(
     @InjectModel(Family.name) private familyModel: Model<FamilyDocument>,
+    @InjectModel(Product.name) private productModel: Model<ProductDocument>,
   ) {}
 
   async create(dto: CreateFamilyDto): Promise<FamilyDocument> {
@@ -58,6 +61,15 @@ export class FamiliesService {
   }
 
   async delete(id: string): Promise<void> {
+    // Block deletion while products still reference this family (required FK)
+    const productCount = await this.productModel.countDocuments({ familyId: id });
+    if (productCount > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar la familia: tiene ${productCount} producto(s) asociado(s). ` +
+          'Reasignalos a otra familia primero.',
+      );
+    }
+
     const result = await this.familyModel.findByIdAndDelete(id);
     if (!result) throw new NotFoundException('Familia no encontrada');
   }

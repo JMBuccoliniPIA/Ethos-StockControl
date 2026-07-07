@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from './users.api';
 import { notify } from '@/lib/toast';
 import type { CreateUserFormData, UpdateUserFormData } from '../schemas/user.schema';
@@ -11,6 +11,7 @@ export function useUsers(page = 1, limit = 20) {
   return useQuery({
     queryKey: [...USERS_KEY, page, limit],
     queryFn: () => usersApi.getAll(page, limit),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -45,5 +46,6 @@ export function useDeleteUser() {
       qc.invalidateQueries({ queryKey: USERS_KEY });
       notify.success('Usuario eliminado');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al eliminar usuario'),
   });
 }

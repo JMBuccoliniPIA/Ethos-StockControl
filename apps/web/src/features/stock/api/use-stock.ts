@@ -11,7 +11,13 @@ export function useCreateMovement() {
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['stock-movements'] });
+      // OUT movements are derived as sales on the backend — keep that view fresh
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['kardex'] });
       notify.success(`Stock actualizado: ${result.previousStock} → ${result.newStock}`);
+    },
+    onError: (err: any) => {
+      notify.error(err.response?.data?.message || 'Error al registrar el movimiento');
     },
   });
 }

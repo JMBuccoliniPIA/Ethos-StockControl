@@ -1,4 +1,4 @@
-import { IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsMongoId, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateSupplierProductDto {
   @IsMongoId()
@@ -35,7 +35,7 @@ export class CreateSupplierProductDto {
   @IsOptional()
   discountPercent?: number;
 
-  @IsEnum(['ARS', 'USD'])
+  @IsIn(['ARS', 'USD'])
   @IsOptional()
   currency?: 'ARS' | 'USD';
 

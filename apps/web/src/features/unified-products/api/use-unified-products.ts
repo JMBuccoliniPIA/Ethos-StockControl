@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { unifiedProductsApi } from './unified-products.api';
 import { notify } from '@/lib/toast';
 import type {
@@ -14,6 +14,7 @@ export function useUnifiedProducts(query?: UnifiedProductQuery) {
   return useQuery({
     queryKey: ['unified-products', query],
     queryFn: () => unifiedProductsApi.getAll(query),
+    placeholderData: keepPreviousData,
   });
 }
 

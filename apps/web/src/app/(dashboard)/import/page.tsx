@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Package, Truck, Plus, Download, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -58,6 +59,7 @@ const MAPPABLE_FIELDS_SUPPLIER = [
 type Step = 'upload' | 'sheet-select' | 'mapping' | 'preview' | 'result';
 
 export default function ImportPage() {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -175,13 +177,18 @@ export default function ImportPage() {
         ? await importApi.confirmSupplier(previewResult.jobId)
         : await importApi.confirm(previewResult.jobId);
       setConfirmResult(result);
+      // Lists derived from this import are now stale
+      queryClient.invalidateQueries({ queryKey: ['supplier-products'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['import-history-supplier'] });
       setStep('result');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al confirmar importación');
     } finally {
       setLoading(false);
     }
-  }, [previewResult, isSupplierImport]);
+  }, [previewResult, isSupplierImport, queryClient]);
 
   const reset = () => {
     setStep('upload');
@@ -210,8 +217,12 @@ export default function ImportPage() {
         productsUpdated: res.productsUpdated,
         errors: res.errors,
       });
+      // Products + Stock catalog changed
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       setImpactConfirmOpen(false);
     } catch (err: any) {
+      // Close the dialog so the error banner (rendered above) isn't hidden by the overlay
+      setImpactConfirmOpen(false);
       setError(err.response?.data?.message || 'Error al impactar en stock');
     } finally {
       setImpactLoading(false);
@@ -239,11 +250,15 @@ export default function ImportPage() {
   // Download the previewed/imported data as Excel
   const handleExportExcel = () => {
     if (!previewResult) return;
-    exportPreviewToExcel(
-      previewResult.preview,
-      isSupplierImport ? 'supplier' : 'standard',
-      file?.name ?? 'planilla-importada',
-    );
+    try {
+      exportPreviewToExcel(
+        previewResult.preview,
+        isSupplierImport ? 'supplier' : 'standard',
+        file?.name ?? 'planilla-importada',
+      );
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo exportar la planilla a Excel');
+    }
   };
 
   return (
@@ -324,7 +339,7 @@ export default function ImportPage() {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedSupplierId(suppliers?.[0]?._id || 'pending')}
+                    onClick={() => setSelectedSupplierId('pending')}
                     className={`w-full flex flex-col items-center p-6 rounded-lg border-2 transition-colors ${
                       selectedSupplierId
                         ? 'border-primary bg-primary/5'

@@ -29,8 +29,11 @@ export function UserDialog({ open, onOpenChange, user }: UserDialogProps) {
     setServerError('');
 
     if (isEditing) {
+      // Strip an empty password so @IsOptional() @MinLength(6) doesn't 400 on edits
+      const payload = { ...(data as UpdateUserFormData) };
+      if (!payload.password?.trim()) delete payload.password;
       updateMutation.mutate(
-        { id: user._id, data: data as UpdateUserFormData },
+        { id: user._id, data: payload },
         {
           onSuccess: () => onOpenChange(false),
           onError: (err: any) => {

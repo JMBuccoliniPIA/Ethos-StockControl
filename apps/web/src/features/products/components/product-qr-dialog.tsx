@@ -45,8 +45,16 @@ export function ProductQrDialog({ open, onOpenChange, product }: ProductQrDialog
     `);
     w.document.close();
     w.focus();
-    w.print();
-    w.close();
+    // Print once the new window has laid out the SVG, then close it
+    const printAndClose = () => {
+      w.print();
+      w.close();
+    };
+    if (w.document.readyState === 'complete') {
+      setTimeout(printAndClose, 100);
+    } else {
+      w.onload = () => setTimeout(printAndClose, 100);
+    }
   };
 
   const handleDownloadPng = () => {
@@ -69,13 +77,16 @@ export function ProductQrDialog({ open, onOpenChange, product }: ProductQrDialog
       canvas.toBlob((blob) => {
         if (!blob) return;
         const dl = document.createElement('a');
-        dl.href = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        dl.href = objectUrl;
         dl.download = `qr-${product.sku}.png`;
         dl.click();
-        URL.revokeObjectURL(dl.href);
+        // Defer revoke so the download isn't cancelled mid-flight (Firefox)
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       }, 'image/png');
       URL.revokeObjectURL(url);
     };
+    img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
   };
 

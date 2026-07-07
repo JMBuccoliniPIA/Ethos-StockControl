@@ -22,6 +22,7 @@ export function useCreateFamily() {
       qc.invalidateQueries({ queryKey: ['families'] });
       notify.success('Familia creada');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al crear familia'),
   });
 }
 
@@ -34,6 +35,7 @@ export function useUpdateFamily() {
       qc.invalidateQueries({ queryKey: ['families'] });
       notify.success('Familia actualizada');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al actualizar familia'),
   });
 }
 
@@ -45,6 +47,7 @@ export function useDeleteFamily() {
       qc.invalidateQueries({ queryKey: ['families'] });
       notify.success('Familia eliminada');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al eliminar familia'),
   });
 }
 

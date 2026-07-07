@@ -80,7 +80,7 @@ export function UnifiedProductDialog({ open, onOpenChange }: Props) {
               <Label>Margen %</Label>
               <Input
                 type="number"
-                {...register('profitMarginPercent', { valueAsNumber: true })}
+                {...register('profitMarginPercent')}
                 placeholder="30"
               />
             </div>
@@ -130,7 +130,7 @@ export function UnifiedProductDialog({ open, onOpenChange }: Props) {
               <Label>Stock inicial</Label>
               <Input
                 type="number"
-                {...register('stock', { valueAsNumber: true })}
+                {...register('stock')}
                 placeholder="0"
               />
             </div>
@@ -139,7 +139,7 @@ export function UnifiedProductDialog({ open, onOpenChange }: Props) {
               <Label>Stock mínimo</Label>
               <Input
                 type="number"
-                {...register('stockMin', { valueAsNumber: true })}
+                {...register('stockMin')}
                 placeholder="0"
               />
             </div>

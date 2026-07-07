@@ -46,11 +46,11 @@ const navigation: NavItem[] = [
   // Oculto temporalmente: sección Productos Unificados (la ruta /unified-products sigue existiendo)
   // { name: 'Unificados', href: '/unified-products', icon: Layers, permission: Permission.PRODUCTS_READ },
   { name: 'Familias', href: '/families', icon: FolderTree, permission: Permission.FAMILIES_READ },
-  { name: 'Proveedores', href: '/suppliers', icon: Building2, permission: Permission.PRODUCTS_READ },
-  { name: 'Lista por Proveedor', href: '/supplier-products', icon: Truck, permission: Permission.PRODUCTS_READ },
+  { name: 'Proveedores', href: '/suppliers', icon: Building2, permission: Permission.SUPPLIERS_READ },
+  { name: 'Lista por Proveedor', href: '/supplier-products', icon: Truck, permission: Permission.SUPPLIERS_READ },
   { name: 'Importar', href: '/import', icon: Upload, permission: Permission.IMPORT_EXECUTE },
   { name: 'Historial de listas', href: '/import-history', icon: History, permission: Permission.IMPORT_READ },
-  { name: 'Auto-mapeo', href: '/mapping-settings', icon: Settings2, permission: Permission.SUPPLIERS_MANAGE },
+  { name: 'Auto-mapeo', href: '/mapping-settings', icon: Settings2, permission: Permission.PRODUCTS_READ },
   { name: 'Usuarios', href: '/users', icon: Users, permission: Permission.USERS_READ },
 ];
 
@@ -79,7 +79,8 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {visibleNav.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          // Exact match (or nested route) so /import-history doesn't also light up /import
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link
               key={item.name}

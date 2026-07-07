@@ -31,6 +31,7 @@ export function useCreateProduct() {
       qc.invalidateQueries({ queryKey: PRODUCTS_KEY });
       notify.success('Producto creado exitosamente');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al crear producto'),
   });
 }
 
@@ -43,6 +44,7 @@ export function useUpdateProduct() {
       qc.invalidateQueries({ queryKey: PRODUCTS_KEY });
       notify.success('Producto actualizado');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al actualizar producto'),
   });
 }
 
@@ -54,6 +56,7 @@ export function useDeleteProduct() {
       qc.invalidateQueries({ queryKey: PRODUCTS_KEY });
       notify.success('Producto eliminado');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al eliminar producto'),
   });
 }
 

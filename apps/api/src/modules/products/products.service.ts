@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery } from 'mongoose';
@@ -9,6 +10,7 @@ import { Product, ProductDocument } from './schemas/product.schema';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { MovementType } from '../../common/constants';
 
 @Injectable()
 export class ProductsService {
@@ -121,6 +123,54 @@ export class ProductsService {
     await product.save();
 
     return { previousStock, newStock: product.stock };
+  }
+
+  /**
+   * Apply a stock movement atomically to avoid TOCTOU races / oversell.
+   * - IN: increments stock.
+   * - OUT: decrements only if enough stock is available (conditional update).
+   * - ADJUSTMENT: sets the stock to the absolute target value.
+   * Returns the real previous/new stock read atomically from the DB.
+   */
+  async applyMovement(
+    id: string,
+    type: MovementType,
+    quantity: number,
+  ): Promise<{ previousStock: number; newStock: number }> {
+    if (type === MovementType.OUT) {
+      const before = await this.productModel.findOneAndUpdate(
+        { _id: id, stock: { $gte: quantity } },
+        { $inc: { stock: -quantity } },
+        { new: false },
+      );
+      if (!before) {
+        const exists = await this.productModel.findById(id).select('stock');
+        if (!exists) throw new NotFoundException('Producto no encontrado');
+        throw new BadRequestException(
+          `Stock insuficiente. Disponible: ${exists.stock}, solicitado: ${quantity}`,
+        );
+      }
+      return { previousStock: before.stock, newStock: before.stock - quantity };
+    }
+
+    if (type === MovementType.ADJUSTMENT) {
+      const before = await this.productModel.findOneAndUpdate(
+        { _id: id },
+        { $set: { stock: quantity } },
+        { new: false },
+      );
+      if (!before) throw new NotFoundException('Producto no encontrado');
+      return { previousStock: before.stock, newStock: quantity };
+    }
+
+    // IN
+    const before = await this.productModel.findOneAndUpdate(
+      { _id: id },
+      { $inc: { stock: quantity } },
+      { new: false },
+    );
+    if (!before) throw new NotFoundException('Producto no encontrado');
+    return { previousStock: before.stock, newStock: before.stock + quantity };
   }
 
   async getStats() {

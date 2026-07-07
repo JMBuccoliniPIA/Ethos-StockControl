@@ -76,6 +76,10 @@ export class ImportJob {
     supplierName?: string;
   }>;
 
+  // UnifiedProducts auto-created by this job's auto-map, so revert() can remove them
+  @Prop({ type: [String], default: [] })
+  autoCreatedUnifiedIds: string[];
+
   @Prop()
   revertedAt?: Date;
 

@@ -47,7 +47,8 @@ export default function KardexPage() {
     limit: 50,
     search: productSearch || undefined,
   });
-  const products = productsData?.data ?? [];
+  // Memoize so the array identity is stable across renders (used in effect/memo deps below)
+  const products = useMemo(() => productsData?.data ?? [], [productsData]);
 
   // Cache the selected product so it doesn't disappear when the search filter changes
   useEffect(() => {

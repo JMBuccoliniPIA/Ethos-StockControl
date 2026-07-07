@@ -2,10 +2,13 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Supplier, SupplierDocument } from './schemas/supplier.schema';
+import { SupplierProduct, SupplierProductDocument } from '../supplier-products/schemas/supplier-product.schema';
+import { StockMovement, StockMovementDocument } from '../stock/schemas/stock-movement.schema';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
@@ -13,6 +16,10 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 export class SuppliersService {
   constructor(
     @InjectModel(Supplier.name) private supplierModel: Model<SupplierDocument>,
+    @InjectModel(SupplierProduct.name)
+    private supplierProductModel: Model<SupplierProductDocument>,
+    @InjectModel(StockMovement.name)
+    private stockMovementModel: Model<StockMovementDocument>,
   ) {}
 
   async create(dto: CreateSupplierDto, userId?: string): Promise<SupplierDocument> {
@@ -72,6 +79,24 @@ export class SuppliersService {
   }
 
   async delete(id: string): Promise<void> {
+    const supplierId = new Types.ObjectId(id);
+
+    // Block deletion while the supplier is still referenced, to avoid orphans
+    const [productCount, movementCount] = await Promise.all([
+      this.supplierProductModel.countDocuments({ supplierId }),
+      this.stockMovementModel.countDocuments({ supplierId }),
+    ]);
+
+    if (productCount > 0 || movementCount > 0) {
+      const refs: string[] = [];
+      if (productCount > 0) refs.push(`${productCount} producto(s) de proveedor`);
+      if (movementCount > 0) refs.push(`${movementCount} movimiento(s) de stock`);
+      throw new BadRequestException(
+        `No se puede eliminar el proveedor: tiene ${refs.join(' y ')} asociados. ` +
+          'Desactivalo en lugar de eliminarlo.',
+      );
+    }
+
     const result = await this.supplierModel.findByIdAndDelete(id);
     if (!result) throw new NotFoundException('Proveedor no encontrado');
   }

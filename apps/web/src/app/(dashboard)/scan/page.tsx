@@ -62,7 +62,7 @@ export default function ScanPage() {
   const handleScan = useCallback(
     async (codes: { rawValue: string }[]) => {
       const rawValue = codes[0]?.rawValue?.trim();
-      if (!rawValue || stage !== 'scanning' || rawValue === lastSku) return;
+      if (!rawValue || stage !== 'scanning' || rawValue === lastSku || loading) return;
 
       setLastSku(rawValue);
       setLoading(true);
@@ -74,12 +74,14 @@ export default function ScanPage() {
         setReason('Venta');
         setStage('found');
       } catch (err: any) {
+        // Reset lastSku so the same QR can be re-scanned after a failed lookup
+        setLastSku('');
         setError(err.response?.data?.message || `No se encontró producto con SKU "${rawValue}"`);
       } finally {
         setLoading(false);
       }
     },
-    [stage, lastSku],
+    [stage, lastSku, loading],
   );
 
   const handleConfirm = async () => {

@@ -58,5 +58,6 @@ export function useDeleteSupplier() {
       qc.invalidateQueries({ queryKey: ['suppliers'] });
       notify.success('Proveedor eliminado');
     },
+    onError: (err: any) => notify.error(err.response?.data?.message || 'Error al eliminar proveedor'),
   });
 }
